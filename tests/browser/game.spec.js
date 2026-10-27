@@ -1,0 +1,123 @@
+import { test, expect } from '@playwright/test';
+
+test('desktop: two players share a room, shoot, reload, and leave', async ({ browser }) => {
+  test.setTimeout(45000);
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const first = await context.newPage();
+  const secondContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const second = await secondContext.newPage();
+  const errors = [];
+  for (const page of [first, second]) page.on('pageerror', error => errors.push(error.message));
+  await Promise.all([first.goto('/'), second.goto('/?room=E2E01')]);
+  await expect(second.locator('#wallet-value')).toHaveText('450');
+  await expect(second.locator('#room-code')).toHaveValue('E2E01');
+  await second.locator('#player-name').fill('Bob');
+  await expect(first.locator('#server-status')).toContainText('OPÉRATIONNEL');
+  await expect(first.locator('canvas')).toBeVisible();
+  await first.screenshot({ path: 'test-results/desktop-lobby.png' });
+  await first.locator('#player-name').fill('Alice'); await first.locator('#room-code').fill('E2E01');
+  await first.locator('#join-button').click();
+  await expect(first.locator('#hud')).toBeVisible();
+  await expect(first.locator('.magazine i:not(.spent)')).toHaveCount(24);
+  await expect(first.getByRole('progressbar', { name: 'Santé' })).toHaveAttribute('aria-valuenow', '100');
+  await second.locator('#join-button').click();
+  await expect(first.locator('#squad-count')).toHaveText('2/4');
+  await expect(second.locator('#squad-count')).toHaveText('2/4');
+  await expect(first.locator('#squad-list')).toContainText('Bob');
+  await first.bringToFront();
+  await first.mouse.move(900, 430); await first.mouse.down();
+  await expect(first.locator('#ammo-value')).not.toHaveText('24');
+  await expect(first.locator('.magazine i.spent').first()).toBeAttached();
+  await first.mouse.up(); await first.keyboard.press('KeyR');
+  await expect(first.locator('#reload-status')).toContainText('RECHARGE');
+  await expect(first.locator('.reload-track')).toBeVisible();
+  await expect(first.locator('#ammo-value')).toHaveText('24');
+  await expect(first.locator('.magazine i:not(.spent)')).toHaveCount(24);
+  await first.screenshot({ path: 'test-results/desktop-game.png' });
+  await second.locator('#leave-game').click();
+  await expect(first.locator('#squad-count')).toHaveText('1/4');
+  await first.locator('#leave-game').click();
+  await expect(first.locator('#landing')).toBeVisible();
+  expect(errors).toEqual([]);
+  await context.close(); await secondContext.close();
+});
+
+test('desktop: defeat, redeployment, camera rotation and the controls panel', async ({ page }) => {
+  test.setTimeout(60000);
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/?room=RETRY'); await page.locator('#join-button').click();
+  await expect(page.locator('#hud')).toBeVisible();
+  // Let the real horde overwhelm a stationary survivor. No test-only gameplay overrides.
+  await expect(page.locator('#gameover')).toBeVisible({ timeout: 40000 });
+  await page.locator('#restart-game').click();
+  await expect(page.locator('#gameover')).toBeHidden();
+  await expect(page.locator('#health-value')).toHaveText('100');
+  await expect(page.locator('#condition-label')).toHaveText('STABLE');
+  await expect(page.locator('body')).not.toHaveClass(/critical-health/);
+  await expect(page.locator('#wave-label')).toHaveText('PROCHAINE VAGUE');
+  await page.mouse.move(700, 440); await page.mouse.down({ button: 'right' });
+  await page.mouse.move(880, 440, { steps: 3 }); await page.mouse.up({ button: 'right' });
+  await page.keyboard.down('KeyD'); await page.waitForTimeout(300); await page.keyboard.up('KeyD');
+  await expect(page.locator('#connection-error')).toBeHidden();
+  await page.locator('.help-toggle').click(); await expect(page.locator('#help')).toBeVisible();
+  await page.locator('#close-help').click(); await expect(page.locator('#help')).toBeHidden();
+  await page.locator('#leave-game').click(); await expect(page.locator('#landing')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('mobile: lobby fits, touch controls deploy and fire without page scrolling', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 });
+  const page = await context.newPage(); const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/?room=MOBILE');
+  await expect(page.locator('canvas')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/mobile-lobby.png' });
+  await page.locator('#join-button').tap();
+  await expect(page.locator('#hud')).toBeVisible();
+  await expect(page.locator('#move-stick')).toBeVisible(); await expect(page.locator('#aim-stick')).toBeVisible();
+  const stick = await page.locator('#aim-stick').boundingBox();
+  const session = await context.newCDPSession(page);
+  await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: stick.x + stick.width * 0.8, y: stick.y + stick.height * 0.5 }] });
+  await expect(page.locator('#ammo-value')).not.toHaveText('24');
+  await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.locator('#touch-reload').tap(); await expect(page.locator('#ammo-value')).toHaveText('24');
+  await page.screenshot({ path: 'test-results/mobile-game.png' });
+  expect(errors).toEqual([]); await context.close();
+});
+
+test('mobile landscape: third-person street view, camera swipe and simultaneous joysticks', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 1066, height: 600 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 });
+  const page = await context.newPage(); const errors = [], inputs = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('websocket', socket => socket.on('framesent', frame => {
+    const message = JSON.parse(String(frame.payload)); if (message.type === 'input') inputs.push(message);
+  }));
+  await page.goto('/?room=NIGHT'); await page.locator('#join-button').tap();
+  await expect(page.locator('#hud')).toBeVisible();
+  const session = await context.newCDPSession(page);
+  const move = await page.locator('#move-stick').boundingBox(), aim = await page.locator('#aim-stick').boundingBox();
+  const movePoint = { id: 1, x: move.x + move.width / 2, y: move.y + move.height * 0.2 };
+  const aimPoint = { id: 2, x: aim.x + aim.width / 2, y: aim.y + aim.height * 0.2 };
+  await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [movePoint, aimPoint] });
+  await expect.poll(() => inputs.some(input => input.z < -0.8 && input.fire)).toBe(true);
+  await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await expect.poll(() => inputs.at(-1)?.fire).toBe(false);
+  const ammo = await page.locator('#ammo-value').textContent();
+  await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 3, x: 480, y: 300 }] });
+  await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ id: 3, x: 620, y: 300 }] });
+  await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  inputs.length = 0;
+  await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [movePoint] });
+  await expect.poll(() => inputs.some(input => input.x > 0.5 && input.z < -0.4 && !input.fire)).toBe(true);
+  await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await expect(page.locator('#ammo-value')).toHaveText(ammo);
+  // Return to the frontal street view for the reference-sized capture.
+  await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 3, x: 620, y: 300 }] });
+  await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ id: 3, x: 480, y: 300 }] });
+  await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await expect(page.locator('#wave-label')).toHaveText('VAGUE EN COURS', { timeout: 10000 });
+  await page.screenshot({ path: 'test-results/mobile-landscape.png' });
+  expect(errors).toEqual([]); await context.close();
+});
