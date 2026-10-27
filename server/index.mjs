@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocket, WebSocketServer } from 'ws';
 import { ProfileStore } from './profiles.mjs';
 import { Room } from './game.mjs';
+import { GAME_VERSION } from '../shared/content.mjs';
 
 const root = path.resolve(fileURLToPath(new URL('../dist', import.meta.url)));
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.ico': 'image/x-icon' };
@@ -47,7 +48,7 @@ export function createGameServer({ tick = true, database = ':memory:' } = {}) {
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return; }
     if (url.pathname === '/api/health') {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-      res.end(JSON.stringify({ status: 'ok', game: 'deadblock', rooms: rooms.size })); return;
+      res.end(JSON.stringify({ status: 'ok', game: 'deadblock', version: GAME_VERSION, rooms: rooms.size })); return;
     }
     try {
       const filename = path.resolve(root, '.' + decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname));

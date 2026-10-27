@@ -3,11 +3,13 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { WebSocket } from 'ws';
 import { startLocalGame } from '../scripts/play.mjs';
+import { GAME_VERSION } from '../shared/content.mjs';
 
 test('desktop launcher serves profiles and a real game on its assigned port', async t => {
   const game = await startLocalGame({ port: 0, host: '127.0.0.1', database: ':memory:' });
   t.after(() => game.close());
   assert.equal(new URL(game.url).port, String(game.server.address().port));
+  assert.equal((await fetch(game.url + '/api/health').then(r => r.json())).version, GAME_VERSION);
   const response = await fetch(game.url + '/api/profiles', { method: 'POST', headers: { Origin: game.url } });
   assert.equal(response.status, 201);
   const { token } = await response.json();

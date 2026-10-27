@@ -100,7 +100,7 @@ with zipfile.ZipFile(args.output, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as
             if file.is_file():
                 archive.write(file, prefix + 'app/' + file.relative_to(root).as_posix())
     archive.write(root / 'scripts/play.mjs', prefix + 'app/scripts/play.mjs')
-    archive.writestr(prefix + 'app/package.json', json.dumps({'name': 'deadblock-windows', 'version': '0.2.0', 'private': True, 'type': 'module'}, indent=2))
+    archive.writestr(prefix + 'app/package.json', json.dumps({'name': 'deadblock-windows', 'version': json.loads((root / 'package.json').read_text())['version'], 'private': True, 'type': 'module'}, indent=2))
     for source, name in [('node_modules/ws/LICENSE', 'ws'), ('node_modules/three/LICENSE', 'Three.js'), ('node_modules/@fontsource/dm-sans/LICENSE', 'DM-Sans'), ('node_modules/@fontsource/barlow-condensed/LICENSE', 'Barlow-Condensed')]:
         archive.write(root / source, prefix + f'Licences/{name}-LICENSE.txt')
 print(f'Created {args.output} ({args.output.stat().st_size / 1024 / 1024:.1f} MiB)')

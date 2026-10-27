@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { DISTRICTS, BOSSES, ENEMIES, weaponFor } from '../shared/content.mjs';
 import { ARENA_SIZE, OBSTACLES, PLAYER_COLORS } from '../shared/world.mjs';
+import { createWeaponModel, createCrateModel } from './props.js';
 import { characterUnderAim, movementInView, unobstructedCamera } from './camera.js';
 
 const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
@@ -88,7 +89,7 @@ function character(color, zombie = false, kind = 'walker', weapon = 'carbine') {
   const slot = Math.max(0, PLAYER_COLORS.indexOf(color));
   const shirt = zombie ? kind === 'tank' ? '#756379' : kind === 'runner' ? '#a27561' : '#a7ad94' : ['#4567a7', '#885568', '#af8450', '#527f79'][slot];
   const hair = ['#714523', '#352d2c', '#a8783b', '#433735'][slot];
-  const legs = [];
+  const legs = []; let weaponModel = null;
   for (const side of [-1, 1]) {
     const leg = new THREE.Group(); leg.position.set(side * 0.19, 0.62, 0); rig.add(leg);
     box(leg, 0.3, 0.48, 0.33, 0, -0.22, 0, zombie ? '#4c535b' : '#303d58');
@@ -107,17 +108,8 @@ function character(color, zombie = false, kind = 'walker', weapon = 'carbine') {
     for (let i = 0; i < 12; i++) box(rig, 0.028, 0.1, 0.012, -0.42 + (i % 6) * 0.16, 1.77 + Math.floor(i / 6) * 0.19, -0.505, '#52351f');
     box(rig, 0.47, 0.25, 0.16, 0, 1.15, -0.27, '#33486d');
     box(rig, 0.39, 0.06, 0.025, 0, 0.9, -0.24, color);
-    const spec = weaponFor(weapon), special = spec.rarity === 'special', long = ['railgun', 'marksman'].includes(weapon);
-    box(rig, special ? .24 : .15, .19, weapon === 'smg' ? .63 : .92, .35, 1.04, .56, '#29323c');
-    box(rig, .09, .1, long ? .85 : .42, .35, 1.04, long ? 1.35 : 1.16, '#69717a');
-    box(rig, .12, .1, weapon === 'marksman' ? .55 : .22, .35, 1.18, .63, '#1c232a');
-    box(rig, .14, .29, .2, .35, .84, .51, '#26303a');
-    if (weapon === 'shotgun') box(rig, .18, .12, .5, .35, .94, .95, '#a28c60');
-    if (special) {
-      for (let i = 0; i < 3; i++) box(rig, .28, .26, .06, .35, 1.04, .7 + i * .14, material(spec.color, { emissive: spec.color, emissiveIntensity: 1.5 }));
-      box(rig, .2, .5, .35, -.05, 1, -.35, '#384b4b');
-      box(rig, .12, .3, .38, -.05, 1, -.35, material(spec.color, { emissive: spec.color, emissiveIntensity: .7 }));
-    }
+    weaponModel = createWeaponModel(weapon); weaponModel.scale.setScalar(.44);
+    weaponModel.rotation.y = -Math.PI / 2; weaponModel.position.set(.38, 1.04, .55); rig.add(weaponModel);
   } else {
     box(rig, 0.55, 0.07, 0.6, -0.15, 2.09, -0.08, '#565846');
     box(rig, 0.09, 0.47, 0.04, 0, 0.95, 0.25, '#77534e');
@@ -160,7 +152,7 @@ function character(color, zombie = false, kind = 'walker', weapon = 'carbine') {
   const ring = new THREE.Mesh(new THREE.RingGeometry(zombie ? 0.36 : 0.52, zombie ? 0.5 : 0.65, 32),
     new THREE.MeshBasicMaterial({ color: zombie ? '#98634e' : color, transparent: true, opacity: zombie ? 0.12 : 0.3, side: THREE.DoubleSide, depthWrite: false }));
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.035; group.add(ring);
-  return { group, rig, legs, ring, phase: Math.random() * 6.28, target: null };
+  return { group, rig, legs, ring, weaponModel, kick: 0, phase: Math.random() * 6.28, target: null };
 }
 
 export class GameScene {
@@ -397,7 +389,7 @@ export class GameScene {
   buildAttractScene() {
     const poses = [[2, 2, 0.7], [4.6, 3.2, 2.4], [2.5, 5.2, -1.5]];
     poses.forEach(([x, z, angle], i) => {
-      const actor = character(PLAYER_COLORS[i]); actor.group.position.set(x, 0, z); actor.rig.rotation.y = angle;
+      const actor = character(PLAYER_COLORS[i], false, 'walker', ['carbine','smg','shotgun'][i]); actor.group.position.set(x, 0, z); actor.rig.rotation.y = angle;
       this.scene.add(actor.group); this.decorations.push(actor.group);
     });
     [[-3, 5], [8, 6], [-3, -3], [4, -6], [8, -7], [-5, 9], [10, 8]].forEach(([x, z], i) => {
@@ -456,12 +448,12 @@ export class GameScene {
     });
     update(state.zombies, this.zombies, z => character('#829272', true, z.kind));
     update(state.pickups, this.pickups, p => {
-      const group = new THREE.Group(), health = !p.kind || p.kind === 'health', cache = p.kind === 'cache';
-      box(group, cache ? 1 : .6, cache ? .7 : .45, cache ? .8 : .5, 0, .4, 0, health ? '#ece4cf' : cache ? '#78674b' : '#67716a');
-      const glow = health ? '#d66b55' : cache ? '#e6c780' : '#b3d295';
-      box(group, .12, .04, cache ? .8 : .35, 0, cache ? .77 : .65, 0, material(glow, { emissive: glow, emissiveIntensity: .7 }));
-      box(group, cache ? 1 : .35, .04, .12, 0, cache ? .78 : .66, 0, material(glow, { emissive: glow, emissiveIntensity: .7 }));
-      return { group };
+      const group = new THREE.Group();
+      const kind = !p.kind || p.kind === 'health' ? 'medical' : p.kind === 'cache' ? p.boss || 'brute' : 'salvage';
+      const crate = createCrateModel(kind); crate.scale.setScalar(p.kind === 'cache' ? .85 : .55); group.add(crate);
+      const ring = new THREE.Mesh(new THREE.RingGeometry(p.kind === 'cache' ? .7 : .42, p.kind === 'cache' ? .76 : .47, 32), new THREE.MeshBasicMaterial({ color: kind === 'medical' ? '#df9c83' : p.kind === 'cache' ? '#d4bb7a' : '#a4c18c', transparent: true, opacity: .45, depthWrite: false, side: THREE.DoubleSide }));
+      ring.rotation.x = -Math.PI / 2; ring.position.y = .045; group.add(ring);
+      return { group, ring };
     });
     update(state.hazards || [], this.hazards, h => {
       const group = new THREE.Group(), color = h.friendly ? '#e8d99b' : h.kind === 'acid' ? '#b6d66f' : h.kind === 'electric' ? '#82dcee' : '#f39c63';
@@ -473,7 +465,7 @@ export class GameScene {
       return { group, fill, inner, disposable: true };
     });
     for (const event of state.events) {
-      if (event.type === 'shot' || event.type === 'arc') this.shot(event);
+      if (event.type === 'shot' || event.type === 'arc') { this.shot(event); const actor = this.players.get(event.player); if (actor) actor.kick = 1; }
       if (event.type === 'blast') this.burst(event.x, event.z, event.kind === 'acid' ? '#b9d87b' : event.kind === 'electric' ? '#8fdcea' : '#eab278', 16);
       if (event.type === 'kill') this.burst(event.x, event.z, '#a2ba76', 7);
       if (event.type === 'hurt' && event.id === this.id) this.shake = 0.3;
@@ -481,8 +473,11 @@ export class GameScene {
   }
 
   shot(event) {
+    const source = new THREE.Vector3(event.x, 1.04, event.z);
+    const muzzle = event.type === 'shot' && this.players.get(event.player)?.weaponModel?.getObjectByName('muzzle');
+    if (muzzle) muzzle.getWorldPosition(source);
     const geometry = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(event.x, 1.04, event.z), new THREE.Vector3(event.endX, 1.04, event.endZ),
+      source, new THREE.Vector3(event.endX, 1.04, event.endZ),
     ]);
     const tracer = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: event.weapon ? weaponFor(event.weapon).color : '#ffe5a6', transparent: true, opacity: 0.85 }));
     this.scene.add(tracer); this.effects.push({ object: tracer, ttl: 0.09, max: 0.09 });
@@ -490,7 +485,7 @@ export class GameScene {
     if (event.weapon === 'ember') this.burst((event.x + event.endX) / 2, (event.z + event.endZ) / 2, '#eb9b53', 2);
     const flash = new THREE.Mesh(new THREE.IcosahedronGeometry(0.17, 0), new THREE.MeshBasicMaterial({ color: '#fff2b6' }));
     const direction = new THREE.Vector3(event.endX - event.x, 0, event.endZ - event.z).normalize();
-    flash.position.set(event.x + direction.x * 1.25, 1.04, event.z + direction.z * 1.25);
+    if (muzzle) flash.position.copy(source); else flash.position.set(event.x + direction.x * 1.25, 1.04, event.z + direction.z * 1.25);
     this.scene.add(flash); this.effects.push({ object: flash, ttl: 0.055, max: 0.055 });
   }
 
@@ -528,6 +523,7 @@ export class GameScene {
   }
 
   render(dt, inputAim) {
+    if (this.inspectionOpen && !this.id) return;
     this.time += dt;
     const particles = this.weather.geometry.attributes.position;
     for (let i = 0; i < particles.count; i++) {
@@ -548,6 +544,13 @@ export class GameScene {
       actor.group.position.x += (target.x - oldX) * alpha; actor.group.position.z += (target.z - oldZ) * alpha;
       const moving = Math.hypot(target.x - oldX, target.z - oldZ) > 0.025;
       actor.phase += dt * (moving ? 13 : 2);
+      if (actor.weaponModel) {
+        actor.kick = Math.max(0, actor.kick - dt * 10);
+        const reloading = target.reload > 0 ? Math.sin(Math.PI * (1 - target.reload / target.reloadDuration)) : 0;
+        actor.weaponModel.position.z = .55 - actor.kick * .095;
+        actor.weaponModel.position.y = 1.04 - reloading * .15;
+        actor.weaponModel.rotation.z = -.22 * reloading + actor.kick * .035;
+      }
       actor.legs.forEach((leg, i) => { leg.rotation.x = moving ? Math.sin(actor.phase + i * Math.PI) * 0.6 : 0; });
       const aim = id === this.id && Number.isFinite(inputAim) ? inputAim : target.aim;
       const diff = Math.atan2(Math.sin(aim - actor.rig.rotation.y), Math.cos(aim - actor.rig.rotation.y));

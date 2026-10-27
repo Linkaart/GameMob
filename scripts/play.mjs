@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { networkInterfaces, homedir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { createGameServer } from '../server/index.mjs';
+import { GAME_VERSION } from '../shared/content.mjs';
 
 export const DEFAULT_PLAY_PORT = 3377;
 
@@ -42,6 +43,10 @@ async function main() {
       const response = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(700) });
       const health = await response.json();
       if (response.ok && health.status === 'ok' && health.game === 'deadblock') {
+        if (health.version !== GAME_VERSION) {
+          console.error('Une ancienne version de DEADBLOCK est encore ouverte. Fermez sa fenetre noire JOUER, puis relancez ce nouveau JOUER.bat.');
+          process.exitCode = 1; return;
+        }
         console.log(`DEADBLOCK est deja ouvert : ${url}`); openBrowser(url); return;
       }
     } catch { /* The usual first launch has no server yet. */ }

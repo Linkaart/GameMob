@@ -504,10 +504,12 @@ function animate(now) {
 requestAnimationFrame(animate);
 
 async function checkHealth() {
+  let retrySoon = false;
   try {
-    const response = await fetch('/api/health', { signal: AbortSignal.timeout(4000) });
+    const response = await fetch('/api/health', { signal: AbortSignal.timeout(8000) });
     const data = await response.json(); if (!response.ok || data.status !== 'ok') throw new Error('offline');
     text('#server-status span', 'SERVEUR OPÉRATIONNEL'); $('#server-status').classList.remove('offline');
-  } catch { text('#server-status span', 'SERVEUR HORS LIGNE'); $('#server-status').classList.add('offline'); }
+  } catch { text('#server-status span', 'SERVEUR HORS LIGNE'); $('#server-status').classList.add('offline'); retrySoon = true; }
+  setTimeout(checkHealth, retrySoon ? 4000 : 30000);
 }
-checkHealth(); setInterval(checkHealth, 30000);
+checkHealth();

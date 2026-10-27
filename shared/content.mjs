@@ -1,3 +1,5 @@
+export const GAME_VERSION = '0.3.0';
+
 export const MATERIALS = {
   scrap: { name: 'Ferraille', short: 'FER', color: '#c5b99a' },
   copper: { name: 'Circuits', short: 'CIR', color: '#e5a267' },

@@ -103,7 +103,13 @@ La caméra à la troisième personne évite les obstacles. Les déplacements sui
 
 ## Graphismes
 
+La version 0.3 ajoute huit modèles d’armes originaux : acier usé, bois bandé, chargeurs, lunettes, bobines, réservoirs et rails distincts. Les images de l’arsenal sont rendues à partir des mêmes maillages que ceux portés en partie. Cliquez sur **Examiner en 3D** pour tourner une arme ou une caisse ; glissement, flèches du clavier et retour à la vue initiale sont pris en charge. Le tir fait reculer l’arme et la recharge l’abaisse.
+
+Cinq modèles de caisses distinguent récupération, soins et bonus des trois boss. Une grenade originale remplace aussi son pictogramme dans la boutique. Les géométries sont regroupées par matériau ; les aperçus sont mis en cache et les maillages temporaires libérés à leur fermeture.
+
 Trois variantes visuelles de la même arène : **Quarantaine**, **La Fonderie**, **Zone Zéro**. Elles changent ciel, brume, éclairage, façades, enseignes et particules (pluie ou cendres). La géométrie des rues et les collisions restent communes. Les boss, ennemis et armes disposent de détails visuels distincts. Néons vacillants, feux, flaques réfléchissantes, ruines industrielles, textures de briques et visages sont générés dans le projet. Les éléments statiques sont regroupés en instances pour réduire le coût du rendu.
+
+Source demandée pour une prochaine reprise des images/statistiques : [Call of Mini Zombies Wiki — Weapons](https://callofminizombies.fandom.com/wiki/Weapons). L’accès à Fandom a été refusé par le proxy réseau de l’environnement le 27 octobre 2026 (403 avant connexion au site). Les autorisations de domaine ont été préparées en brouillon. **Aucune image ni statistique de ce wiki n’a encore été importée** ; les valeurs de `shared/content.mjs` restent celles du prototype et ne sont pas présentées comme les valeurs officielles.
 
 ## Sauvegarde
 
@@ -132,6 +138,7 @@ Les tests couvrent déplacements/collisions/caméra, tirs/recharge/réanimation,
 - `server/navigation.mjs`, `shared/world.mjs` : navigation et collisions.
 - `src/hub.js`, `src/hub.css` : refuge, boutique, atelier, arsenal et contrats.
 - `src/scene.js`, `src/camera.js` : rendu Three.js et caméra.
+- `src/props.js`, `src/prop-viewer.js` : modèles originaux, vignettes et inspection 3D.
 - `src/main.js`, `src/hud.css` : réseau, entrées, audio et ATH.
 
 Prototype en un seul processus, sans matchmaking public, campagne scénarisée ni application native Android/iOS. Les salles disparaissent quand tous les joueurs partent ou au redémarrage du serveur. La progression permanente reste sauvegardée, mais une reconnexion crée un nouveau personnage de sortie. Les codes de salle facilitent les invitations ; ils ne constituent pas un compte utilisateur.

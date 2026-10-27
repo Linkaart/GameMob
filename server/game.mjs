@@ -128,7 +128,7 @@ export class Room {
         this.award(ally, { credits: boss.credits, xp: 150, materials: { [boss.material]: 1, scrap: 12, copper: 4, chemical: 3 }, stats: { bosses: 1 }, boss: z.kind });
       }
       this.events.push({ type: 'boss_loot', boss: z.kind });
-      this.pickups.push({ id: ++this.serial, x: z.x, z: z.z, kind: 'cache', ttl: 60 });
+      this.pickups.push({ id: ++this.serial, x: z.x, z: z.z, kind: 'cache', boss: z.kind, ttl: 60 });
     } else if (this.random() < .23 && this.pickups.length < 20) this.pickups.push({ id: ++this.serial, x: z.x, z: z.z, kind: this.random() < .4 ? 'health' : 'scrap', ttl: 30 });
   }
 
