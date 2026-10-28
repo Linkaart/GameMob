@@ -1,5 +1,6 @@
 import { WEAPONS, MATERIALS, SHOP_ITEMS, BOSSES, DISTRICTS, ENEMIES, CONTRACTS, canCraft, weaponFor } from '../shared/content.mjs';
 import './hub.css';
+import { loadBossAssets } from './boss-models.js';
 import { CRATES } from './props.js';
 import { propArt, PropInspector } from './prop-viewer.js';
 
@@ -8,7 +9,7 @@ const safeRead = key => { try { return localStorage.getItem(key); } catch { retu
 export function weaponArt(id) { return propArt('weapon', id, weaponFor(id).name); }
 
 const materials = (recipe, profile, costs = false) => Object.entries(recipe).map(([id, count]) => `<span class="material-chip ${costs && (profile?.materials[id] || 0) < count ? 'missing' : ''}" title="${MATERIALS[id].name}" style="--item-color:${MATERIALS[id].color}"><i>${MATERIALS[id].short}</i>${costs ? `${profile?.materials[id] || 0} / ` : ''}${count}</span>`).join('');
-const bossArt = (id, small = false) => `<div class="boss-art ${id} ${small ? 'small' : ''}" aria-hidden="true"><i class="boss-body"></i><i class="boss-head"><b></b><b></b><em></em></i><i class="boss-arm left"></i><i class="boss-arm right"></i><span>${id === 'warden' ? 'ϟ' : id === 'matriarch' ? '✳' : 'III'}</span></div>`;
+const bossArt = id => propArt('boss', id, BOSSES[id].name, 'boss-portrait');
 
 export class Hub {
   constructor(scene) {
@@ -18,7 +19,7 @@ export class Hub {
     landing.innerHTML = `<header class="hub-header"><a class="hub-logo" href="/" aria-label="Deadblock, accueil"><span>D</span>DEADBLOCK<small>LE REFUGE</small></a><div class="hub-account"><span class="hub-rank">SURVIVANT <b id="rank-value">01</b></span><strong class="hub-wallet"><i>◈</i><span id="wallet-value">—</span><small>CRÉDITS</small></strong><div id="hub-connection"></div></div></header>
       <div class="hub-layout"><nav class="hub-nav" aria-label="Navigation du refuge">${tabs.map(([id, n, name]) => `<button type="button" data-tab="${id}" ${id === 'home' ? 'aria-current="page"' : ''}><span>${n}</span>${name}<i>›</i></button>`).join('')}<div class="nav-foot"><span class="live-dot"></span> REFUGE OPÉRATIONNEL<small>SECTEUR 07 / DERNIER SIGNAL</small></div></nav>
       <main class="hub-main"><div id="hub-message" role="status" aria-live="polite"></div><div id="hub-loading">Connexion au refuge…</div><div id="hub-content"></div><div id="deployment-dock"></div></main></div>
-      <footer class="hub-footer"><span>NE SURVIVEZ PAS SEUL.</span><span>COOPÉRATION 1–4 JOUEURS <i>•</i> PC & MOBILE</span><span>DEADBLOCK / 0.3</span></footer>`;
+      <footer class="hub-footer"><span>NE SURVIVEZ PAS SEUL.</span><span>COOPÉRATION 1–4 JOUEURS <i>•</i> PC & MOBILE</span><span>DEADBLOCK / 0.4</span></footer>`;
     document.querySelector('#hub-connection').append(status, sound);
     document.querySelector('#deployment-dock').append(form);
     form.querySelector('.form-top .eyebrow').textContent = 'PRÊT POUR UNE SORTIE ?';
@@ -36,6 +37,7 @@ export class Hub {
       if (event.target.closest('#profile-retry')) this.ready = this.load();
     });
     this.render(); this.ready = this.load();
+    loadBossAssets().then(() => { if (['home', 'bestiary'].includes(this.tab) && !this.inspector.modal.open) this.render(); });
   }
   async request(url, data) {
     const response = await fetch(url, { method: data ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}) }, ...(data ? { body: JSON.stringify(data) } : {}), signal: AbortSignal.timeout(8000) });
@@ -98,7 +100,7 @@ export class Hub {
     } else if (this.tab === 'contracts') {
       content.innerHTML = this.heading('TABLEAU DES CONTRATS / OBJECTIFS PERMANENTS', 'Chaque sortie compte.', 'Éliminations, entraide et fabrication : vos actions font avancer ces six contrats, partie après partie.') + `<div class="content-grid contract-grid">${CONTRACTS.map((c,i) => { const n = Math.min(c.target,p?.stats[c.stat] || 0), claimed = p?.claimed.includes(c.id); return `<article class="contract-card"><div class="card-top"><span>CONTRAT / 0${i+1}</span><b>${claimed ? 'RÉCUPÉRÉ' : n >= c.target ? 'TERMINÉ' : 'EN COURS'}</b></div><h2>${c.name}</h2><p>${c.description}</p><div class="contract-progress" role="progressbar" aria-label="${c.name}" aria-valuenow="${n}" aria-valuemin="0" aria-valuemax="${c.target}"><span style="width:${n/c.target*100}%"></span></div><div class="contract-count">${n} / ${c.target}</div><div class="contract-reward"><strong>◈ ${c.reward.credits} CR</strong>${c.reward.materials ? materials(c.reward.materials,p) : '<span>+ 2 TROUSSES DE SECOURS</span>'}</div>${this.button('claim',c.id,claimed ? 'RÉCOMPENSE RÉCUPÉRÉE' : 'RÉCUPÉRER', !claimed && n >= c.target)}</article>`; }).join('')}</div>`;
     } else {
-      content.innerHTML = this.heading('RENSEIGNEMENTS / MENACES CONNUES', 'Connaître ce qui vous traque.', 'Trois boss, six types d’infectés. Surveillez les marques au sol et restez en mouvement.') + `<div class="boss-dossiers">${Object.entries(BOSSES).map(([id,b]) => `<article class="boss-dossier" style="--item-color:${b.color}"><span class="hub-eyebrow">${p?.defeated.includes(id) ? 'CIBLE DÉJÀ NEUTRALISÉE' : 'MENACE MAJEURE'}</span>${bossArt(id)}<h2>${b.name}</h2><small>${b.title} · ${b.hp} PV en solo</small><p>${b.description} À mi-vie, le boss accélère et appelle des renforts.</p><div class="boss-drop"><span>BUTIN GARANTI / PAR SURVIVANT</span>${materials({[b.material]:1},p)}<strong>+ ${b.credits} CR</strong></div><button class="card-action" data-hunt="${id}">PRÉPARER LA CHASSE <span>›</span></button></article>`).join('')}</div><div class="section-line"><h2>LES INFECTÉS</h2><span>6 PROFILS DE MENACE</span></div><div class="enemy-grid">${Object.entries(ENEMIES).map(([id,e]) => `<article style="--item-color:${e.color}"><span class="enemy-symbol">${({walker:'I',runner:'»',spitter:'∴',exploder:'✳',tank:'III',armored:'▣'})[id]}</span><div><h3>${e.name}</h3><p>${e.description}</p><small>À PARTIR DE LA VAGUE ${e.wave}</small></div></article>`).join('')}</div>`;
+      content.innerHTML = this.heading('RENSEIGNEMENTS / MENACES CONNUES', 'Connaître ce qui vous traque.', 'Trois boss, six types d’infectés. Surveillez les marques au sol et restez en mouvement.') + `<div class="boss-dossiers">${Object.entries(BOSSES).map(([id,b]) => `<article class="boss-dossier" style="--item-color:${b.color}"><span class="hub-eyebrow">${p?.defeated.includes(id) ? 'CIBLE DÉJÀ NEUTRALISÉE' : 'MENACE MAJEURE'}</span>${bossArt(id)}<h2>${b.name}</h2><small>${b.title} · ${b.hp} PV en solo</small><p>${b.description} À mi-vie, le boss accélère et appelle des renforts.</p><div class="boss-drop"><span>BUTIN GARANTI / PAR SURVIVANT</span>${materials({[b.material]:1},p)}<strong>+ ${b.credits} CR</strong></div><button class="card-action" data-hunt="${id}">PRÉPARER LA CHASSE <span>›</span></button></article>`).join('')}</div><p class="boss-credits">Modèles : Quaternius · Ultimate Animated Monster Pack (CC0). Adaptation et équipement : DEADBLOCK. <a href="/assets/bosses/CREDITS.txt" target="_blank" rel="noopener">Sources des modèles ↗</a></p><div class="section-line"><h2>LES INFECTÉS</h2><span>6 PROFILS DE MENACE</span></div><div class="enemy-grid">${Object.entries(ENEMIES).map(([id,e]) => `<article style="--item-color:${e.color}"><span class="enemy-symbol">${({walker:'I',runner:'»',spitter:'∴',exploder:'✳',tank:'III',armored:'▣'})[id]}</span><div><h3>${e.name}</h3><p>${e.description}</p><small>À PARTIR DE LA VAGUE ${e.wave}</small></div></article>`).join('')}</div>`;
       content.querySelectorAll('[data-hunt]').forEach(b => b.addEventListener('click', () => { this.settings.mode = 'hunt'; this.settings.boss = b.dataset.hunt; this.settings.district = BOSSES[b.dataset.hunt].region; this.scene?.configureDistrict(this.settings.district); this.tab = 'home'; this.render(); document.querySelector('#deployment-dock').scrollIntoView({ block: 'center' }); }));
     }
   }

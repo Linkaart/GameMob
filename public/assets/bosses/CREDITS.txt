@@ -1,0 +1,25 @@
+DEADBLOCK — Modèles des boss / crédits et provenance
+
+Créateur : Quaternius
+Pack : Ultimate Animated Monster Pack
+Page du créateur : https://quaternius.com/packs/ultimatemonsters.html
+Licence annoncée par le dépôt de distribution : CC0 (domaine public).
+Texte de la licence : https://creativecommons.org/publicdomain/zero/1.0/
+
+Dépôt de distribution consulté le 28 octobre 2026 :
+https://github.com/511action/descent-3d-assets
+Révision : 7c5af55b84faf6dbe4a9bada9f11627151acbe62
+Description du dépôt : CC0 monster models (Quaternius Ultimate Monsters pack, public domain) used by descent-3d
+
+Fichiers distribués, inchangés :
+BlueDemon.gltf — SHA256 9eb899fc619dff9a973669e0962452990c8ec44d4501dd41fe4f4fe5afd631f4
+https://github.com/511action/descent-3d-assets/blob/7c5af55b84faf6dbe4a9bada9f11627151acbe62/models/BlueDemon.gltf
+Demon.gltf — SHA256 9ce361b41a0e80d42a70f6325169b9c70a6e3304b8d856b8344a2b7f185067af
+https://github.com/511action/descent-3d-assets/blob/7c5af55b84faf6dbe4a9bada9f11627151acbe62/models/Demon.gltf
+Orc.gltf — SHA256 e61a37f8d9b2eee28928bdfad2c55e0798cc0a212e925cc5dcc66b243526c1a3
+https://github.com/511action/descent-3d-assets/blob/7c5af55b84faf6dbe4a9bada9f11627151acbe62/models/Orc.gltf
+
+Adaptation DEADBLOCK : échelle, armure de récupération, pointes, poches toxiques, bobines, noyau lumineux, transitions d’animation et intégration au combat.
+Orc → Le Briseur ; Demon → La Porteuse ; BlueDemon → Le Veilleur.
+Seuls ces trois modèles sont utilisés. Les fichiers audio et les autres assets du dépôt ne sont pas distribués.
+Les caractéristiques de combat sont celles du prototype DEADBLOCK, pas des statistiques officielles de Call of Mini Zombies.

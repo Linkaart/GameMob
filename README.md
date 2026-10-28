@@ -1,6 +1,6 @@
 # GameMob · DEADBLOCK
 
-Jeu de survie coopérative en 3D dans le navigateur, pour 1 à 4 joueurs. Un refuge pour préparer ses sorties, une ville infestée, trois boss à chasser et des armes spéciales à fabriquer avec leur butin. Univers, graphismes procéduraux et sons originaux ; aucun asset de Call of Mini: Zombies n’est utilisé.
+Jeu de survie coopérative en 3D dans le navigateur, pour 1 à 4 joueurs. Un refuge pour préparer ses sorties, une ville infestée, trois boss à chasser et des armes spéciales à fabriquer avec leur butin. Univers, décor procédural, armes et sons originaux ; boss adaptés de modèles Quaternius CC0. Aucun asset de Call of Mini: Zombies n’est utilisé.
 
 ## Démarrer
 
@@ -103,6 +103,14 @@ La caméra à la troisième personne évite les obstacles. Les déplacements sui
 
 ## Graphismes
 
+La version **0.4** remplace les trois boss cubiques par des modèles animés **Quaternius / Ultimate Animated Monster Pack**, récupérés sur [le dépôt de distribution](https://github.com/511action/descent-3d-assets) à la révision `7c5af55b84faf6dbe4a9bada9f11627151acbe62`, qui les annonce sous CC0. Les fichiers, empreintes et liens sources sont consignés dans [les crédits](public/assets/bosses/CREDITS.txt), également accessibles depuis le bestiaire et inclus dans l’archive Windows.
+
+- **Le Briseur** : Orc adapté, masque de fer, épaulières à pointes, protections des avant-bras et plastron lumineux.
+- **La Porteuse** : Demon adapté, crocs, excroissances et poches toxiques vertes.
+- **Le Veilleur** : BlueDemon adapté, visière, harnais, noyau et bobines électriques.
+
+Les trois modèles ont des transitions entre repos, marche, course en rage et coups de mêlée, déclenchés par l’état de combat. Les pièces ajoutées suivent les os du squelette. Leur lueur s’intensifie en rage. Les fiches du refuge et du bestiaire montrent les modèles du jeu, avec inspection 3D animée. Les fichiers sont servis localement, textures et animations incluses : aucun téléchargement externe n’est nécessaire pendant une partie. Un modèle de secours reste visible si le chargement échoue. Chaque instance libère ses géométries, matériaux et squelette sans invalider ceux des autres boss.
+
 La version 0.3 ajoute huit modèles d’armes originaux : acier usé, bois bandé, chargeurs, lunettes, bobines, réservoirs et rails distincts. Les images de l’arsenal sont rendues à partir des mêmes maillages que ceux portés en partie. Cliquez sur **Examiner en 3D** pour tourner une arme ou une caisse ; glissement, flèches du clavier et retour à la vue initiale sont pris en charge. Le tir fait reculer l’arme et la recharge l’abaisse.
 
 Cinq modèles de caisses distinguent récupération, soins et bonus des trois boss. Une grenade originale remplace aussi son pictogramme dans la boutique. Les géométries sont regroupées par matériau ; les aperçus sont mis en cache et les maillages temporaires libérés à leur fermeture.
@@ -138,6 +146,7 @@ Les tests couvrent déplacements/collisions/caméra, tirs/recharge/réanimation,
 - `server/navigation.mjs`, `shared/world.mjs` : navigation et collisions.
 - `src/hub.js`, `src/hub.css` : refuge, boutique, atelier, arsenal et contrats.
 - `src/scene.js`, `src/camera.js` : rendu Three.js et caméra.
+- `src/boss-models.js`, `public/assets/bosses/` : modèles téléchargés, provenance, équipements ajoutés et animations des boss.
 - `src/props.js`, `src/prop-viewer.js` : modèles originaux, vignettes et inspection 3D.
 - `src/main.js`, `src/hud.css` : réseau, entrées, audio et ATH.
 

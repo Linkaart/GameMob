@@ -352,7 +352,7 @@ export class Room {
       type: 'state', code: this.code, settings: this.settings, wave: this.wave, phase: this.phase, timer: this.timer,
       elapsed: this.elapsed, remaining: this.zombies.length + this.toSpawn, teamKills: this.teamKills,
       players: [...this.players.values()].map(({ input, inputAge, cooldown, itemCooldown, profileId, ...p }) => p),
-      zombies: this.zombies.map(({ route, routeAge, speed, attack, ability, burn, ...z }) => ({ ...z, burning: !!burn })),
+      zombies: this.zombies.map(({ route, routeAge, speed, attack, ability, burn, ...z }) => ({ ...z, burning: !!burn, ...(z.boss ? { attacking: attack > .5 } : {}) })),
       hazards: this.hazards.map(({ damage, owner, pulse, ...h }) => ({ ...h, friendly: !!owner })),
       pickups: this.pickups, events: this.events.splice(0),
     };

@@ -1,19 +1,27 @@
 import * as THREE from 'three';
 import { createWeaponModel, createCrateModel, createGrenadeModel, disposeProp, CRATES, WEAPON_FINISHES } from './props.js';
-import { weaponFor } from '../shared/content.mjs';
+import { createBossModel, disposeBossModel, BOSS_DESIGNS } from './boss-models.js';
+import { weaponFor, BOSSES } from '../shared/content.mjs';
 import './prop-viewer.css';
 
 const thumbnails = new Map();
 let studio;
-function makeModel(kind, id) { return kind === 'crate' ? createCrateModel(id) : kind === 'supply' ? createGrenadeModel() : createWeaponModel(id); }
+function makeModel(kind, id) { return kind === 'boss' ? createBossModel(id) : kind === 'crate' ? createCrateModel(id) : kind === 'supply' ? createGrenadeModel() : createWeaponModel(id); }
 function lightScene(scene) {
   scene.add(new THREE.HemisphereLight('#e1e8e4', '#40484c', 2.7));
   const key = new THREE.DirectionalLight('#fff1d8', 3.5); key.position.set(-2, 4, 5); scene.add(key);
   const rim = new THREE.DirectionalLight('#91b4cb', 2.8); rim.position.set(2, 1, -3); scene.add(rim);
   const fill = new THREE.DirectionalLight('#d0ac83', 1); fill.position.set(-4, -.3, 1); scene.add(fill);
 }
+function disposeModel(model) { if (model.userData.bossAsset) disposeBossModel(model); else disposeProp(model); }
 function fitModel(model) {
-  const bounds = new THREE.Box3().setFromObject(model), size = bounds.getSize(new THREE.Vector3());
+  model.updateMatrixWorld(true);
+  const bounds = new THREE.Box3();
+  model.traverseVisible(mesh => { if (mesh.isMesh) {
+    if (mesh.isSkinnedMesh) { mesh.computeBoundingBox(); bounds.union(mesh.boundingBox.clone().applyMatrix4(mesh.matrixWorld)); }
+    else { mesh.geometry.computeBoundingBox(); bounds.union(mesh.geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld)); }
+  } });
+  const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3()); for (const child of model.children) child.position.sub(center);
   return size;
 }
@@ -35,7 +43,8 @@ export function propThumbnail(kind, id) {
       studio = { renderer, scene, camera: new THREE.OrthographicCamera(-2, 2, 1, -1, .01, 40) };
     }
     const { renderer, scene, camera } = studio;
-    model = makeModel(kind, id); const size = fitModel(model);
+    model = makeModel(kind, id); if (!model) return null; const size = fitModel(model);
+    if (kind === 'boss') model.rotation.y = -.35;
     if (kind === 'crate') model.rotation.y = -.36;
     else if (kind === 'weapon') model.rotation.z = .055;
     scene.add(model);
@@ -48,12 +57,12 @@ export function propThumbnail(kind, id) {
   } catch {
     // Keep the shop usable if a device cannot allocate another WebGL context.
     return null;
-  } finally { if (model) disposeProp(model); }
+  } finally { if (model) disposeModel(model); }
 }
 
 export function propArt(kind, id, name, className = 'weapon-art') {
   const image = propThumbnail(kind, id);
-  return `<button type="button" class="prop-preview" data-inspect-kind="${kind}" data-inspect-id="${id}" aria-label="Examiner ${name} en 3D">${image ? `<img class="${className}" src="${image}" alt="Modèle 3D de ${name}" draggable="false">` : `<span class="prop-fallback">${name}</span>`}<span class="inspect-label">EXAMINER EN 3D <b>+</b></span></button>`;
+  return `<button type="button" class="prop-preview" ${kind === 'boss' && !image ? 'disabled aria-busy="true"' : ''} data-inspect-kind="${kind}" data-inspect-id="${id}" aria-label="Examiner ${name} en 3D">${image ? `<img class="${className}" src="${image}" alt="Modèle 3D de ${name}" draggable="false">` : `<span class="prop-fallback">${name}</span>`}<span class="inspect-label">EXAMINER EN 3D <b>+</b></span></button>`;
 }
 
 export class PropInspector {
@@ -70,7 +79,7 @@ export class PropInspector {
     this.modal.addEventListener('click', e => { if (e.target === this.modal) { const r = this.modal.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) this.modal.close(); } });
     this.modal.addEventListener('close', () => {
       this.onVisibility(false); cancelAnimationFrame(this.frame); this.drag = null;
-      if (this.model) { disposeProp(this.model); this.model = null; }
+      if (this.model) { disposeModel(this.model); this.model = null; }
       this.previousFocus?.focus();
     });
     this.modal.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => {
@@ -93,13 +102,14 @@ export class PropInspector {
     });
   }
   open(kind, id, trigger) {
-    if (kind === 'weapon' && !Object.hasOwn(WEAPON_FINISHES, id) || kind === 'crate' && !Object.hasOwn(CRATES, id) || !['weapon','crate','supply'].includes(kind)) return;
-    const spec = kind === 'weapon' ? weaponFor(id) : kind === 'crate' ? CRATES[id] : { name: 'Grenade artisanale', description: 'Une coque striée, une cuillère métallique et un anneau de récupération.' };
+    if (kind === 'boss' && !Object.hasOwn(BOSS_DESIGNS, id) || kind === 'weapon' && !Object.hasOwn(WEAPON_FINISHES, id) || kind === 'crate' && !Object.hasOwn(CRATES, id) || !['weapon','crate','supply','boss'].includes(kind)) return;
+    const spec = kind === 'boss' ? BOSSES[id] : kind === 'weapon' ? weaponFor(id) : kind === 'crate' ? CRATES[id] : { name: 'Grenade artisanale', description: 'Une coque striée, une cuillère métallique et un anneau de récupération.' };
+    this.modal.querySelector('.inspection-top > span').textContent = kind === 'boss' ? 'BESTIAIRE / QUATERNIUS · ADAPTATION DEADBLOCK' : 'ATELIER DU REFUGE / MODÈLE ORIGINAL';
     this.previousFocus = trigger || document.activeElement;
     this.modal.querySelector('#inspection-name').textContent = spec.name;
-    this.modal.querySelector('#inspection-finish').textContent = kind === 'weapon' ? WEAPON_FINISHES[id].label : 'CAISSES ET ÉQUIPEMENT / RÉCUPÉRATION';
-    this.modal.querySelector('#inspection-detail').textContent = kind === 'weapon' ? WEAPON_FINISHES[id].detail : spec.description;
-    this.modal.querySelector('#inspection-stats').innerHTML = kind === 'weapon' ? `<span><b>${spec.damage}${spec.pellets ? ' × ' + spec.pellets : ''}</b>DÉGÂTS</span><span><b>${spec.magazine}</b>CHARGEUR</span><span><b>${spec.reload.toLocaleString('fr-FR')} s</b>RECHARGE</span><span><b>${spec.range} m</b>PORTÉE</span>` : '';
+    this.modal.querySelector('#inspection-finish').textContent = kind === 'boss' ? BOSS_DESIGNS[id].label : kind === 'weapon' ? WEAPON_FINISHES[id].label : 'CAISSES ET ÉQUIPEMENT / RÉCUPÉRATION';
+    this.modal.querySelector('#inspection-detail').textContent = kind === 'boss' ? BOSS_DESIGNS[id].detail : kind === 'weapon' ? WEAPON_FINISHES[id].detail : spec.description;
+    this.modal.querySelector('#inspection-stats').innerHTML = kind === 'boss' ? `<span><b>${spec.hp}</b>PV EN SOLO</span><span><b>${spec.credits}</b>CRÉDITS</span><span><b>50 %</b>SEUIL DE RAGE</span>` : kind === 'weapon' ? `<span><b>${spec.damage}${spec.pellets ? ' × ' + spec.pellets : ''}</b>DÉGÂTS</span><span><b>${spec.magazine}</b>CHARGEUR</span><span><b>${spec.reload.toLocaleString('fr-FR')} s</b>RECHARGE</span><span><b>${spec.range} m</b>PORTÉE</span>` : '';
     this.modal.showModal(); this.onVisibility(true); this.yaw = -.12; this.pitch = .08;
     try {
       if (!this.renderer) {
@@ -108,11 +118,14 @@ export class PropInspector {
         this.scene = new THREE.Scene(); lightScene(this.scene); this.camera = new THREE.PerspectiveCamera(35, 1, .01, 50);
         this.resizeObserver = new ResizeObserver(() => this.resize()); this.resizeObserver.observe(this.stage);
       }
-      if (this.model) disposeProp(this.model);
+      if (this.model) disposeModel(this.model);
       this.model = makeModel(kind, id); this.modelSize = fitModel(this.model); this.scene.add(this.model);
       this.resize();
+      let last = performance.now();
+      this.stage.dataset.model = this.model.userData.bossAsset || id;
       const render = () => {
         if (!this.modal.open) return;
+        const now = performance.now(); this.model.userData.animate?.((now - last) / 1000); last = now;
         this.model.rotation.set(this.pitch, this.yaw, 0); this.renderer.render(this.scene, this.camera);
         this.frame = requestAnimationFrame(render);
       };
@@ -125,8 +138,9 @@ export class PropInspector {
     if (!this.renderer || !this.model) return;
     const w = this.stage.clientWidth, h = this.stage.clientHeight; if (!w || !h) return;
     this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
-    const span = Math.max(this.modelSize.y * 1.5, this.modelSize.x / this.camera.aspect, this.modelSize.z * 1.5);
-    this.camera.position.set(.2, .35, span / (2 * Math.tan(THREE.MathUtils.degToRad(35) / 2)) * 1.35);
+    const isBoss = !!this.model.userData.bossAsset;
+    const span = Math.max(this.modelSize.y * (isBoss ? 1.05 : 1.5), this.modelSize.x / this.camera.aspect, this.modelSize.z * (isBoss ? 1.05 : 1.5));
+    this.camera.position.set(.2, .35, span / (2 * Math.tan(THREE.MathUtils.degToRad(35) / 2)) * (isBoss ? 1.15 : 1.35));
     this.camera.lookAt(0, 0, 0);
   }
 }

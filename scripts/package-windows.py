@@ -93,6 +93,7 @@ with zipfile.ZipFile(args.output, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as
     archive.writestr(prefix + 'JOUER.bat', batch.replace('\n', '\r\n').encode('ascii'))
     archive.writestr(prefix + 'LIRE-MOI.txt', guide.replace('\n', '\r\n').encode('ascii'))
     archive.write(args.runtime, prefix + 'runtime/node.exe')
+    archive.write(root / 'public/assets/bosses/CREDITS.txt', prefix + 'Licences/Quaternius-Bosses-CREDITS.txt')
     archive.write(args.node_license, prefix + 'Licences/Node.js-LICENSE.txt')
     archive.writestr(prefix + 'Licences/Runtime-SHA256.txt', expected + '  runtime/node.exe\nSource : https://nodejs.org/dist/v24.22.1/win-x64/node.exe\n')
     for folder in ['dist', 'server', 'shared', 'node_modules/ws']:

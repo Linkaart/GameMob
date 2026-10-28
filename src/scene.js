@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { DISTRICTS, BOSSES, ENEMIES, weaponFor } from '../shared/content.mjs';
 import { ARENA_SIZE, OBSTACLES, PLAYER_COLORS } from '../shared/world.mjs';
 import { createWeaponModel, createCrateModel } from './props.js';
+import { createBossModel, loadBossAssets, disposeBossModel } from './boss-models.js';
 import { characterUnderAim, movementInView, unobstructedCamera } from './camera.js';
 
 const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
@@ -82,7 +83,26 @@ function brickMaterial(width, height, tint) {
   return material(tint, { map: texture });
 }
 
-function character(color, zombie = false, kind = 'walker', weapon = 'carbine') {
+function bossCharacter(kind) {
+  const group = new THREE.Group(), rig = new THREE.Group(); group.add(rig);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(.85, .94, 40), new THREE.MeshBasicMaterial({ color: BOSSES[kind].color, transparent: true, opacity: .28, side: THREE.DoubleSide, depthWrite: false }));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = .04; group.add(ring);
+  const fallback = character('#829272', true, kind, 'carbine', true); rig.add(fallback.group);
+  const actor = { group, rig, ring, legs: [], phase: 0, boss: true, model: null, disposed: false, fallback };
+  const install = () => {
+    if (actor.disposed) return;
+    const model = createBossModel(kind); if (!model) return;
+    fallback.group.removeFromParent();
+    fallback.group.traverse(mesh => { if (mesh.isMesh && mesh.geometry !== boxGeometry) mesh.geometry.dispose(); });
+    fallback.ring.material.dispose(); actor.fallback = null;
+    rig.add(model); actor.model = model;
+  };
+  loadBossAssets().then(install);
+  return actor;
+}
+
+function character(color, zombie = false, kind = 'walker', weapon = 'carbine', fallback = false) {
+  if (zombie && BOSSES[kind] && !fallback) return bossCharacter(kind);
   const group = new THREE.Group();
   const rig = new THREE.Group(); group.add(rig);
   const skin = zombie ? (BOSSES[kind]?.color || ENEMIES[kind]?.color || '#9eac7e') : '#dcba94';
@@ -416,6 +436,13 @@ export class GameScene {
 
   removeActor(actor) {
     this.scene.remove(actor.group);
+    if (actor.boss) {
+      actor.disposed = true;
+      if (actor.model) disposeBossModel(actor.model);
+      if (actor.fallback) this.removeActor(actor.fallback);
+      actor.ring.geometry.dispose(); actor.ring.material.dispose();
+      return;
+    }
     if (actor.disposable) actor.group.traverse(mesh => { if (mesh.isMesh) { mesh.geometry.dispose(); mesh.material.dispose(); } });
     if (!actor.disposable) actor.group.traverse(mesh => { if (mesh.isMesh && mesh.geometry !== boxGeometry && mesh !== actor.ring) mesh.geometry.dispose(); });
     if (actor.ring) { actor.ring.geometry.dispose(); actor.ring.material.dispose(); }
@@ -551,14 +578,15 @@ export class GameScene {
         actor.weaponModel.position.y = 1.04 - reloading * .15;
         actor.weaponModel.rotation.z = -.22 * reloading + actor.kick * .035;
       }
+      actor.model?.userData.animate(dt, { moving, enraged: target.enraged, attacking: target.attacking });
       actor.legs.forEach((leg, i) => { leg.rotation.x = moving ? Math.sin(actor.phase + i * Math.PI) * 0.6 : 0; });
       const aim = id === this.id && Number.isFinite(inputAim) ? inputAim : target.aim;
       const diff = Math.atan2(Math.sin(aim - actor.rig.rotation.y), Math.cos(aim - actor.rig.rotation.y));
       actor.rig.rotation.y += diff * alpha;
       actor.rig.rotation.z = target.hp <= 0 ? Math.PI / 2 : 0;
-      actor.rig.position.y = target.hp <= 0 ? 0.1 : moving ? Math.abs(Math.sin(actor.phase)) * 0.06 : Math.sin(this.time * 2 + actor.phase) * 0.02;
+      actor.rig.position.y = actor.boss ? 0 : target.hp <= 0 ? 0.1 : moving ? Math.abs(Math.sin(actor.phase)) * 0.06 : Math.sin(this.time * 2 + actor.phase) * 0.02;
       if (target.burning && Math.random() < dt * 8) this.burst(target.x, target.z, '#e58c4b', 2);
-      actor.ring.material.opacity = target.hp <= 0 ? 0.3 + Math.sin(this.time * 6) * 0.2 : map === this.zombies ? 0.1 : 0.25;
+      actor.ring.material.opacity = target.hp <= 0 ? 0.3 + Math.sin(this.time * 6) * 0.2 : actor.boss ? (target.enraged ? .5 : .28) : map === this.zombies ? 0.1 : 0.25;
     }
     for (const actor of this.pickups.values()) { actor.group.rotation.y += dt; actor.group.position.y = 0.1 + Math.sin(this.time * 3) * 0.08; }
     const local = this.players.get(this.id);

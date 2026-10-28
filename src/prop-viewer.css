@@ -3,3 +3,9 @@
 @media(max-width:760px){.prop-preview>.weapon-art,.supply .prop-preview .weapon-art{height:120px}.inspect-label{font-size:5px;letter-spacing:.7px;right:9px}.crate-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.crate-card .prop-preview>.weapon-art{height:125px}.crate-card .card-copy h2{font-size:22px}.crate-card .card-copy p{font-size:9px}.inspection-top{padding:0 15px}.inspection-top>span{font-size:6px;letter-spacing:1px}.inspection-stage{height:250px}.inspection-toolbar{padding:10px 14px}.inspection-toolbar>span{font-size:6px;max-width:100px;line-height:1.6}.inspection-copy{padding:20px}.inspection-copy h2{font-size:34px}.inspection-copy>span{font-size:6px;letter-spacing:1px}.inspection-copy p{font-size:11px}#inspection-stats{gap:22px}#inspection-stats b{font-size:24px}#inspection-stats>span{font-size:6px;letter-spacing:.6px}}
 @media(max-width:420px){.craft-grid .prop-preview>.weapon-art{height:165px}.inspection-stage{height:220px}.inspection-copy h2{font-size:32px}.inspection-copy p{font-size:10px}}
 @media(max-height:600px) and (orientation:landscape){.prop-inspector{width:min(820px,calc(100vw - 30px))}.inspection-stage{height:200px}.inspection-copy{padding:18px 24px}.inspection-copy h2{font-size:30px}}
+.boss-portrait { display: block; width: 100%; height: 255px; object-fit: cover; filter: drop-shadow(0 12px 16px #0009); }
+.boss-dossier .prop-preview, .hero-intel .prop-preview { width: 100%; background: radial-gradient(ellipse at 50% 60%, #62706430, transparent 70%); border-bottom: 1px solid #ffffff12; }
+.boss-dossier .prop-preview:hover, .hero-intel .prop-preview:hover { background-color: #a9beaf0a; }
+.boss-credits { color: #94a29a; font-size: 12px; line-height: 1.6; }
+.boss-credits a { color: #c3d4b2; }
+.hero-intel .boss-portrait { height: 210px; }
