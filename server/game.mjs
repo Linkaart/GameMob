@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { ARENA_SIZE, MAGAZINE_SIZE, OBSTACLES, PLAYER_COLORS, blocked, moveBody, rayBoxDistance } from '../shared/world.mjs';
-import { WEAPONS, ENEMIES, BOSSES, DISTRICTS, weaponFor } from '../shared/content.mjs';
+import { ARENA_SIZE, MAGAZINE_SIZE, OBSTACLES, PLAYER_COLORS, worldFor, blocked, moveBody, rayBoxDistance } from '../shared/world.mjs';
+import { WEAPONS, ENEMIES, BOSSES, DISTRICTS, weaponFor, missionFor } from '../shared/content.mjs';
 import { clearPath, findRoute } from './navigation.mjs';
 
 const finite = (n, fallback = 0) => typeof n === 'number' && Number.isFinite(n) ? n : fallback;
@@ -11,7 +11,10 @@ export class Room {
   constructor(code, random = Math.random, options = {}) {
     this.code = code;
     this.hooks = options.hooks || {};
-    this.settings = { district: Object.hasOwn(DISTRICTS, options.district) ? options.district : 'quarantine', mode: options.mode === 'hunt' ? 'hunt' : 'survival', boss: Object.hasOwn(BOSSES, options.boss) ? options.boss : 'brute' };
+    this.settings = { district: Object.hasOwn(DISTRICTS, options.district) ? options.district : 'quarantine', mode: ['hunt','campaign'].includes(options.mode) ? options.mode : 'survival', boss: Object.hasOwn(BOSSES, options.boss) ? options.boss : 'brute' };
+    this.mission = this.settings.mode === 'campaign' ? missionFor(options.mission) || missionFor('last_signal') : null;
+    if (this.mission) { this.settings.mission = this.mission.id; this.settings.district = this.mission.district; }
+    this.world = worldFor(this.settings.district); this.resetObjective();
     this.hazards = [];
     this.random = random;
     this.players = new Map();
@@ -67,7 +70,7 @@ export class Room {
     const p = this.players.get(id);
     if (!p) return;
     if (action === 'restart' && ['over', 'victory'].includes(this.phase)) {
-      this.wave = 0;
+      this.wave = 0; this.resetObjective();
       this.phase = 'breather';
       this.timer = 5;
       this.teamKills = 0;
@@ -95,16 +98,53 @@ export class Room {
     }
     if (action === 'grenade' && p.grenades > 0 && this.consume(p, 'grenade')) {
       p.grenades--; p.itemCooldown = 1;
-      const point = { x: p.x, z: p.z }; moveBody(point, Math.sin(p.aim) * 6, Math.cos(p.aim) * 6);
+      const point = { x: p.x, z: p.z }; moveBody(point, Math.sin(p.aim) * 6, Math.cos(p.aim) * 6, .46, this.world);
       this.hazard('grenade', point, 4.5, 1, .3, 180, p.id);
+    }
+  }
+
+  resetObjective() {
+    if (!this.mission) { this.objective = null; return; }
+    this.objective = { goal: this.mission.goal, target: this.mission.target || this.mission.waves, progress: 0, ready: false, extracting: 0,
+      points: this.world.stations.slice(0, this.mission.goal === 'salvage' ? this.mission.target : 1).map((p, i) => ({ ...p, id: i, progress: 0, done: false })),
+      exit: { x: 0, z: this.world.size / 2 - 4 }, contested: false };
+  }
+  updateObjective(dt) {
+    const o = this.objective; if (!o) return;
+    const living = [...this.players.values()].filter(p => p.hp > 0);
+    if (!o.ready) {
+      if (o.goal === 'salvage') {
+        for (const point of o.points) {
+          if (point.done) continue;
+          const helper = living.some(p => p.input.interact && distance(p, point) < 2.8);
+          point.progress = helper ? Math.min(2, point.progress + dt) : Math.max(0, point.progress - dt);
+          if (point.progress >= 2) { point.done = true; this.events.push({ type: 'objective', message: 'Réserve sécurisée' }); }
+        }
+        o.progress = o.points.filter(p => p.done).length;
+      } else if (o.goal === 'defend') {
+        const point = o.points[0]; o.contested = this.zombies.some(z => z.hp > 0 && distance(z, point) < 4);
+        if (!o.contested && living.some(p => distance(p, point) < 4)) o.progress = Math.min(o.target, o.progress + dt);
+      } else o.progress = Math.min(o.target, this.wave - (this.phase === 'combat' ? 1 : 0));
+      if (this.phase === 'objective' && o.progress >= o.target && !this.zombies.length) {
+        o.ready = true; this.phase = 'extraction'; this.events.push({ type: 'objective', message: 'Extraction disponible : rejoignez la balise' });
+      }
+    } else if (this.phase === 'extraction') {
+      const together = living.length && living.every(p => distance(p, o.exit) < 3.5);
+      o.extracting = together ? Math.min(5, o.extracting + dt) : 0;
+      if (o.extracting >= 5) {
+        this.phase = 'victory';
+        for (const p of this.players.values()) this.award(p, { mission: this.mission.id, credits: this.mission.reward });
+        this.events.push({ type: 'campaign_complete', mission: this.mission.id });
+      }
     }
   }
 
   consume(p, item) { return !p.profileId || !this.hooks.consume || this.hooks.consume(p.profileId, item); }
   award(p, reward) {
-    if (p.profileId && this.hooks.reward) p.credits = this.hooks.reward(p.profileId, reward).credits;
+    let awarded = reward;
+    if (p.profileId && this.hooks.reward) { const profile = this.hooks.reward(p.profileId, reward); p.credits = profile.credits; if (reward.mission) awarded = profile.recentLoot[0] || reward; }
     else p.credits += reward.credits || 0;
-    for (const [key, value] of Object.entries(reward.materials || {})) p.loot[key] = (p.loot[key] || 0) + value;
+    for (const [key, value] of Object.entries(awarded.materials || {})) p.loot[key] = (p.loot[key] || 0) + value;
   }
   hazard(kind, point, radius, delay, life, damage, owner = null) {
     this.hazards.push({ id: ++this.serial, kind, x: point.x, z: point.z, radius, delay, duration: delay, life, damage, owner, pulse: 0 });
@@ -137,21 +177,23 @@ export class Room {
     this.wave++;
     this.phase = 'combat';
     this.toSpawn = this.settings.mode === 'hunt' ? 4 + this.players.size * 2 : Math.ceil((7 + this.wave * 3) * (1 + (this.players.size - 1) * 0.55));
+    if (this.mission) this.toSpawn = Math.ceil((5 + this.mission.tier + this.wave * 2) * (1 + (this.players.size - 1) * .4));
     this.spawnTimer = 0;
     this.events.push({ type: 'wave', wave: this.wave });
-    if (this.settings.mode === 'hunt' || this.wave % 3 === 0) this.spawnBoss(this.settings.mode === 'hunt' ? this.settings.boss : ['brute', 'matriarch', 'warden'][Math.floor(this.wave / 3 - 1) % 3]);
+    if (this.mission) { const boss = this.mission.bosses?.[this.wave - 1] || (this.wave === this.mission.waves ? this.mission.boss : null); if (boss) this.spawnBoss(boss); }
+    else if (this.settings.mode === 'hunt' || this.wave % 3 === 0) this.spawnBoss(this.settings.mode === 'hunt' ? this.settings.boss : ['brute', 'matriarch', 'warden'][Math.floor(this.wave / 3 - 1) % 3]);
   }
 
   spawnBoss(kind) {
     const boss = BOSSES[kind], hp = Math.round(boss.hp * (1 + (this.players.size - 1) * .5) * (1 + Math.floor(this.wave / 10) * .25));
-    this.zombies.push({ id: ++this.serial, kind, boss: true, x: 0, z: -19, hp, maxHp: hp, speed: boss.speed, attack: 0, ability: 3, aim: 0 });
+    this.zombies.push({ id: ++this.serial, kind, boss: true, x: 0, z: -this.world.size / 2 + 4, hp, maxHp: hp, speed: boss.speed, attack: 0, ability: 3, aim: 0 });
     this.events.push({ type: 'boss', boss: kind });
   }
   spawnZombie(forced) {
-    const side = Math.floor(this.random() * 4), coordinate = (this.random() - .5) * (ARENA_SIZE - 4), edge = ARENA_SIZE / 2 - 1;
-    const available = Object.keys(ENEMIES).filter(k => ENEMIES[k].wave <= this.wave);
+    const side = Math.floor(this.random() * 4), coordinate = (this.random() - .5) * (this.world.size - 4), edge = this.world.size / 2 - 1;
+    const available = Object.keys(ENEMIES).filter(k => ENEMIES[k].wave <= (this.mission ? this.mission.tier : this.wave));
     const kind = forced || (this.random() < .45 ? available[Math.floor(this.random() * available.length)] : 'walker');
-    const spec = ENEMIES[kind], hp = spec.hp + this.wave * 8;
+    const spec = ENEMIES[kind], hp = spec.hp + (this.mission ? this.mission.tier : this.wave) * 8;
     this.zombies.push({ id: ++this.serial, x: side < 2 ? (side === 0 ? -edge : edge) : coordinate,
       z: side < 2 ? coordinate : (side === 2 ? -edge : edge), hp, maxHp: hp, kind,
       speed: spec.speed + (kind === 'walker' ? Math.min(this.wave * .07, .85) : 0), attack: 0, ability: 3, aim: 0, route: null });
@@ -162,7 +204,7 @@ export class Room {
     for (let pellet = 0; pellet < (weapon.pellets || 1); pellet++) {
       const aim = p.aim + (weapon.pellets ? (pellet / (weapon.pellets - 1) - .5) * weapon.spread : 0), dx = Math.sin(aim), dz = Math.cos(aim);
       let range = weapon.range;
-      for (const obstacle of OBSTACLES) range = Math.min(range, rayBoxDistance(p.x, p.z, dx, dz, obstacle));
+      for (const obstacle of this.world.obstacles) range = Math.min(range, rayBoxDistance(p.x, p.z, dx, dz, obstacle));
       const hits = [];
       for (const z of this.zombies) {
         if (z.hp <= 0) continue;
@@ -175,18 +217,19 @@ export class Room {
       const targets = hits.slice(0, weapon.pierce || 1);
       for (const { z } of targets) {
         this.damageEnemy(z, weapon.damage * (1 + (p.level - 1) * .375), p, true);
+        if (weapon.slow && z.hp > 0) z.chilled = weapon.slow;
         if (weapon.burn && z.hp > 0) z.burn = { ttl: weapon.burn, tick: .5, player: p.id };
         if (weapon.chain) {
           let from = z;
           const seen = new Set([z.id]);
           for (let i = 0; i < weapon.chain; i++) {
-            const next = this.zombies.filter(other => other.hp > 0 && !seen.has(other.id) && distance(from, other) < 5 && clearPath(from, other)).sort((a, b) => distance(from, a) - distance(from, b))[0];
+            const next = this.zombies.filter(other => other.hp > 0 && !seen.has(other.id) && distance(from, other) < 5 && clearPath(from, other, this.world)).sort((a, b) => distance(from, a) - distance(from, b))[0];
             if (!next) break;
             this.events.push({ type: 'arc', x: from.x, z: from.z, endX: next.x, endZ: next.z, weapon: p.weapon });
             this.damageEnemy(next, weapon.damage * .65, p); seen.add(next.id); from = next;
           }
         }
-        if (weapon.splash) for (const other of this.zombies) if (other !== z && other.hp > 0 && distance(z, other) < weapon.splash && clearPath(z, other)) this.damageEnemy(other, 23, p);
+        if (weapon.splash) for (const other of this.zombies) if (other !== z && other.hp > 0 && distance(z, other) < weapon.splash && clearPath(z, other, this.world)) this.damageEnemy(other, weapon.splashDamage || 23, p);
       }
       if (targets.length && !weapon.pierce) range = targets[0].near;
       this.events.push({ type: 'shot', player: p.id, weapon: p.weapon, x: p.x, z: p.z, endX: p.x + dx * range, endZ: p.z + dz * range, hit: targets.length > 0 });
@@ -219,14 +262,14 @@ export class Room {
       return { dx: dx / length, dz: dz / length, length };
     };
     zombie.routeAge = (zombie.routeAge || 0) + dt;
-    if (clearPath(zombie, target)) zombie.route = [];
+    if (clearPath(zombie, target, this.world)) zombie.route = [];
     else if (!zombie.route?.length || zombie.routeAge > 0.8) {
-      zombie.route = findRoute(zombie, target); zombie.routeAge = 0;
+      zombie.route = findRoute(zombie, target, this.world); zombie.routeAge = 0;
     }
     if (zombie.route?.length && distance(zombie, zombie.route[0]) < 0.15) zombie.route.shift();
     const direction = directionTo(zombie.route?.[0] || target);
     zombie.aim = Math.atan2(direction.dx, direction.dz);
-    moveBody(zombie, direction.dx * zombie.speed * dt, direction.dz * zombie.speed * dt, 0.4);
+    moveBody(zombie, direction.dx * zombie.speed * dt * (zombie.chilled > 0 ? .45 : 1), direction.dz * zombie.speed * dt * (zombie.chilled > 0 ? .45 : 1), 0.4, this.world);
   }
 
   tick(dt) {
@@ -264,7 +307,7 @@ export class Room {
         continue;
       }
       const speed = p.input.sprint && !p.input.fire ? 6.2 : 4.4;
-      moveBody(p, p.input.x * speed * dt, p.input.z * speed * dt);
+      moveBody(p, p.input.x * speed * dt, p.input.z * speed * dt, .46, this.world);
       p.aim = p.input.aim;
       p.cooldown = Math.max(0, p.cooldown - dt);
       p.itemCooldown = Math.max(0, p.itemCooldown - dt);
@@ -277,6 +320,7 @@ export class Room {
     }
     this.zombies = this.zombies.filter(z => z.hp > 0);
     for (const zombie of [...this.zombies]) {
+      zombie.chilled = Math.max(0, (zombie.chilled || 0) - dt);
       if (zombie.burn) {
         zombie.burn.ttl -= dt; zombie.burn.tick -= dt;
         const owner = this.players.get(zombie.burn.player);
@@ -307,7 +351,7 @@ export class Room {
         if (d > 0.001 && d < 0.8) {
           const push = Math.min((0.8 - d) * 0.5, dt);
           const dx = (a.x - b.x) / d * push, dz = (a.z - b.z) / d * push;
-          moveBody(a, dx, dz, 0.4); moveBody(b, -dx, -dz, 0.4);
+          moveBody(a, dx, dz, 0.4, this.world); moveBody(b, -dx, -dz, 0.4, this.world);
         }
       }
     }
@@ -320,7 +364,7 @@ export class Room {
         this.events.push({ type: 'blast', x: h.x, z: h.z, kind: h.kind });
         if (h.owner) {
           const owner = this.players.get(h.owner);
-          if (owner) for (const z of this.zombies) if (z.hp > 0 && distance(h, z) < h.radius && clearPath(h, z)) this.damageEnemy(z, h.damage, owner);
+          if (owner) for (const z of this.zombies) if (z.hp > 0 && distance(h, z) < h.radius && clearPath(h, z, this.world)) this.damageEnemy(z, h.damage, owner);
         } else for (const p of living) if (distance(h, p) < h.radius) this.damagePlayer(p, h.damage);
       }
     }
@@ -338,19 +382,20 @@ export class Room {
     }
     this.pickups = this.pickups.filter(p => p.ttl > 0);
     if (this.phase === 'combat' && !this.toSpawn && !this.zombies.length) {
-      this.phase = this.settings.mode === 'hunt' ? 'victory' : 'breather'; this.timer = 9;
+      this.phase = this.mission && this.wave >= this.mission.waves ? 'objective' : this.settings.mode === 'hunt' ? 'victory' : 'breather'; this.timer = 9;
       for (const p of this.players.values()) {
         p.hp = Math.min(100, Math.max(50, p.hp) + 15);
         p.ammo = p.magazine; p.reload = 0; this.award(p, { credits: 40, xp: 35, stats: { waves: 1 }, wave: this.wave, materials: { scrap: 3, copper: 1 } });
       }
       this.events.push({ type: 'clear', wave: this.wave });
     }
+    this.updateObjective(dt);
   }
 
   snapshot() {
     return {
       type: 'state', code: this.code, settings: this.settings, wave: this.wave, phase: this.phase, timer: this.timer,
-      elapsed: this.elapsed, remaining: this.zombies.length + this.toSpawn, teamKills: this.teamKills,
+      objective: this.objective, elapsed: this.elapsed, remaining: this.zombies.length + this.toSpawn, teamKills: this.teamKills,
       players: [...this.players.values()].map(({ input, inputAge, cooldown, itemCooldown, profileId, ...p }) => p),
       zombies: this.zombies.map(({ route, routeAge, speed, attack, ability, burn, ...z }) => ({ ...z, burning: !!burn, ...(z.boss ? { attacking: attack > .5 } : {}) })),
       hazards: this.hazards.map(({ damage, owner, pulse, ...h }) => ({ ...h, friendly: !!owner })),

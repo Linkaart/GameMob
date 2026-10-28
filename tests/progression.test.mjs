@@ -104,7 +104,7 @@ test('special guns chain, pierce, splash or burn and use their own magazines and
   for (let i = 0; i < 15; i++) room.tick(.05); assert.ok(room.zombies[0].hp < hp);
   for (const id of Object.keys(WEAPONS)) {
     ({ room, p } = setup(id)); p.ammo = 1; room.shoot(p); assert.equal(p.reload, WEAPONS[id].reload);
-    for (let i = 0; i < 60; i++) room.tick(.05); assert.equal(p.ammo, WEAPONS[id].magazine);
+    for (let i = 0; i < Math.ceil(WEAPONS[id].reload / .05) + 2; i++) room.tick(.05); assert.equal(p.ammo, WEAPONS[id].magazine);
   }
 });
 

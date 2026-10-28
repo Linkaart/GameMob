@@ -50,7 +50,8 @@ guide = '''DEADBLOCK - VERSION WINDOWS 64 BITS
 2. Ouvrez le dossier extrait DEADBLOCK-Windows.
 3. Double-cliquez sur JOUER.bat (Windows peut afficher seulement "JOUER").
 4. Le jeu s'ouvre dans votre navigateur. Gardez la fenetre noire ouverte.
-5. Dans le refuge, choisissez votre nom et cliquez sur "Deployer l'escouade".
+5. Dans le refuge, ouvrez Campagne, choisissez la premiere mission,
+   puis votre nom et cliquez sur "Deployer l'escouade".
 
 Si le navigateur ne s'ouvre pas, copiez l'adresse affichee dans la fenetre
 du lanceur dans la barre d'adresse de Chrome, Edge ou Firefox.
@@ -64,7 +65,7 @@ Le runtime officiel Node.js est fourni dans runtime/node.exe.
 COMMANDES
 ZQSD / WASD : bouger       Souris + clic gauche : viser et tirer
 Clic droit + glisser : camera      R : recharger      Maj : courir
-F : soin      G : grenade      E maintenu : relever un allie
+F : soin      G : grenade      E maintenu : objectif / relever un allie
 U : ameliorer l'arme pour cette sortie      H : aide
 
 MULTIJOUEUR LOCAL
@@ -93,6 +94,7 @@ with zipfile.ZipFile(args.output, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as
     archive.writestr(prefix + 'JOUER.bat', batch.replace('\n', '\r\n').encode('ascii'))
     archive.writestr(prefix + 'LIRE-MOI.txt', guide.replace('\n', '\r\n').encode('ascii'))
     archive.write(args.runtime, prefix + 'runtime/node.exe')
+    archive.write(root / 'public/assets/weapons/CREDITS.txt', prefix + 'Licences/Kenney-Weapons-CREDITS.txt')
     archive.write(root / 'public/assets/bosses/CREDITS.txt', prefix + 'Licences/Quaternius-Bosses-CREDITS.txt')
     archive.write(args.node_license, prefix + 'Licences/Node.js-LICENSE.txt')
     archive.writestr(prefix + 'Licences/Runtime-SHA256.txt', expected + '  runtime/node.exe\nSource : https://nodejs.org/dist/v24.22.1/win-x64/node.exe\n')

@@ -2,8 +2,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { BOSSES, CONTRACTS, MATERIALS, SHOP_ITEMS, WEAPONS, canCraft } from '../shared/content.mjs';
+import { BOSSES, CONTRACTS, MATERIALS, SHOP_ITEMS, WEAPONS, canCraft, missionFor } from '../shared/content.mjs';
 
+const normalize = p => { p.campaign ||= { completed: [] }; p.stats.missions ||= 0; return p; };
 const hash = token => createHash('sha256').update(token).digest('hex');
 export class ProfileStore {
   constructor(filename = ':memory:') {
@@ -18,16 +19,16 @@ export class ProfileStore {
     const token = randomBytes(32).toString('hex');
     const profile = { id: randomUUID(), credits: 450, xp: 0, owned: ['carbine'], equipped: 'carbine',
       materials: Object.fromEntries(Object.keys(MATERIALS).map(key => [key, 0])),
-      consumables: { medkit: 1, grenade: 2 }, stats: { kills: 0, waves: 0, bosses: 0, revives: 0, crafts: 0, bestWave: 0 },
+      consumables: { medkit: 1, grenade: 2 }, stats: { kills: 0, waves: 0, bosses: 0, revives: 0, crafts: 0, bestWave: 0, missions: 0 }, campaign: { completed: [] },
       defeated: [], claimed: [], recentLoot: [], createdAt: Date.now() };
     this.db.prepare('INSERT INTO profiles (id,token_hash,data) VALUES (?,?,?)').run(profile.id, hash(token), JSON.stringify(profile));
     return { token, profile };
   }
   authenticate(token) {
     if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) return null;
-    const row = this.readToken.get(hash(token)); return row ? JSON.parse(row.data) : null;
+    const row = this.readToken.get(hash(token)); return row ? normalize(JSON.parse(row.data)) : null;
   }
-  get(id) { const row = this.readId.get(id); return row ? JSON.parse(row.data) : null; }
+  get(id) { const row = this.readId.get(id); return row ? normalize(JSON.parse(row.data)) : null; }
   transaction(id, change) {
     this.db.exec('BEGIN IMMEDIATE');
     try {
@@ -69,6 +70,11 @@ export class ProfileStore {
     });
   }
   applyReward(p, reward) {
+    if (reward.mission && missionFor(reward.mission)) {
+      const m = missionFor(reward.mission), first = !p.campaign.completed.includes(m.id);
+      if (first) p.campaign.completed.push(m.id);
+      reward = { credits: first ? m.reward : Math.floor(m.reward * .35), xp: first ? 180 : 50, stats: { missions: first ? 1 : 0 }, materials: { scrap: first ? 12 : 4, copper: first ? 4 : 1 } };
+    }
     p.credits += Math.max(0, reward.credits || 0); p.xp += Math.max(0, reward.xp || 0);
     for (const [key, amount] of Object.entries(reward.materials || {})) if (MATERIALS[key]) p.materials[key] += Math.max(0, amount);
     for (const [key, amount] of Object.entries(reward.consumables || {})) if (key in p.consumables) p.consumables[key] = Math.min(20, p.consumables[key] + Math.max(0, amount));

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocket, WebSocketServer } from 'ws';
 import { ProfileStore } from './profiles.mjs';
 import { Room } from './game.mjs';
-import { GAME_VERSION } from '../shared/content.mjs';
+import { GAME_VERSION, missionFor, missionUnlocked } from '../shared/content.mjs';
 
 const root = path.resolve(fileURLToPath(new URL('../dist', import.meta.url)));
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.ico': 'image/x-icon' };
@@ -91,6 +91,10 @@ export function createGameServer({ tick = true, database = ':memory:' } = {}) {
         const profile = message.token ? profiles.authenticate(message.token) : null;
         if (message.token && !profile) { send(ws, { type: 'error', message: 'Profil invalide. Rechargez le refuge.' }); return; }
         if (profile && activeProfiles.has(profile.id)) { send(ws, { type: 'error', message: 'Ce survivant est déjà en partie dans un autre onglet.' }); return; }
+        const campaignSettings = rooms.get(code)?.settings || message.settings;
+        if (campaignSettings?.mode === 'campaign' && (!profile || !missionFor(campaignSettings.mission) || !missionUnlocked(profile, campaignSettings.mission))) {
+          send(ws, { type: 'error', message: 'Cette mission est verrouillée. Terminez d’abord la précédente avec ce survivant.' }); return;
+        }
         if (!rooms.has(code)) {
           if (rooms.size >= 30) { send(ws, { type: 'error', message: 'Serveur complet. Réessayez un peu plus tard.' }); return; }
           rooms.set(code, new Room(code, Math.random, { ...message.settings, hooks }));

@@ -1,4 +1,4 @@
-export const GAME_VERSION = '0.4.0';
+export const GAME_VERSION = '0.5.0';
 
 export const MATERIALS = {
   scrap: { name: 'Ferraille', short: 'FER', color: '#c5b99a' },
@@ -18,6 +18,11 @@ export const WEAPONS = {
   ember: { name: 'Braise', category: 'Projecteur thermique', rarity: 'special', color: '#f4a26a', damage: 14, magazine: 60, cooldown: .07, reload: 2.2, range: 11, burn: 3, recipe: { scrap: 30, chemical: 10, bio: 1 }, description: 'Une flamme continue qui embrase les infectés et les consume dans le temps.', shape: 'flamer' },
   railgun: { name: 'Brise-Rempart', category: 'Canon magnétique', rarity: 'special', color: '#c1a2ed', damage: 190, magazine: 5, cooldown: 1, reload: 2.4, range: 40, pierce: 4, recipe: { scrap: 40, copper: 16, plate: 1 }, description: 'Une décharge traverse jusqu’à quatre cibles. L’arme des chasseurs de colosses.', shape: 'railgun' },
   venom: { name: 'Ronce Noire', category: 'Lanceur biochimique', rarity: 'special', color: '#b7dd71', damage: 38, magazine: 16, cooldown: .32, reload: 1.8, range: 25, splash: 2.6, recipe: { scrap: 25, chemical: 16, bio: 2 }, description: 'Chaque impact éclate en spores corrosives qui touchent les infectés voisins.', shape: 'bio' },
+  pistol: { name: 'Sentinelle', category: 'Pistolet lourd', rarity: 'standard', color: '#d7be8a', damage: 62, magazine: 12, cooldown: .3, reload: 1.05, range: 22, price: 220, description: 'Compact et économe. Une recharge rapide pour garder les coureurs à distance.' },
+  lmg: { name: 'Barrage', category: 'Mitrailleuse', rarity: 'standard', color: '#d7be8a', damage: 27, magazine: 80, cooldown: .11, reload: 3.4, range: 28, price: 900, description: 'Une longue rafale pour défendre un relais. Prévoyez le temps de recharger.' },
+  cryo: { name: 'Hiver Noir', category: 'Projecteur cryogénique', rarity: 'special', color: '#a1e0ef', damage: 36, magazine: 28, cooldown: .2, reload: 1.8, range: 23, slow: 2.5, recipe: { scrap: 32, copper: 12, reactor: 1, bio: 1 }, description: 'Ralentit les infectés pendant 2,5 secondes. Un contrôle précieux à l’extraction.' },
+  cannon: { name: 'Dernier Soleil', category: 'Canon à plasma', rarity: 'special', color: '#f4bb70', damage: 130, magazine: 6, cooldown: .85, reload: 2.8, range: 30, splash: 3.5, splashDamage: 70, recipe: { scrap: 50, copper: 18, plate: 2, reactor: 1 }, description: 'Un impact lourd suivi d’une explosion de plasma. Attention au petit chargeur.' },
+
 };
 
 export const SHOP_ITEMS = {
@@ -54,6 +59,15 @@ export const CONTRACTS = [
   { id: 'guardian', name: 'Personne derrière', description: 'Relever 3 alliés.', stat: 'revives', target: 3, reward: { credits: 180, consumables: { medkit: 2 } } },
   { id: 'gunsmith', name: 'L’art de survivre', description: 'Fabriquer 2 armes spéciales.', stat: 'crafts', target: 2, reward: { credits: 350, materials: { scrap: 20, copper: 8 } } },
   { id: 'exterminator', name: 'La ville nous appartient', description: 'Éliminer 200 infectés.', stat: 'kills', target: 200, reward: { credits: 500, materials: { reactor: 1 } } },
+  { id: 'supply_runner', name: 'Approvisionner le refuge', description: 'Terminer une mission de campagne.', stat: 'missions', target: 1, reward: { credits: 180, materials: { scrap: 10 } } },
+  { id: 'district_clear', name: 'Quartier libéré', description: 'Terminer 3 missions de campagne.', stat: 'missions', target: 3, reward: { credits: 350, materials: { plate: 1 } } },
+  { id: 'campaign_veteran', name: 'Au bout de la nuit', description: 'Terminer 9 missions de campagne.', stat: 'missions', target: 9, reward: { credits: 900, materials: { reactor: 2, bio: 2 } } },
+  { id: 'horde_breaker', name: 'Briser la horde', description: 'Éliminer 500 infectés.', stat: 'kills', target: 500, reward: { credits: 800, materials: { scrap: 40 } } },
+  { id: 'boss_master', name: 'Prédateur alpha', description: 'Vaincre 10 boss.', stat: 'bosses', target: 10, reward: { credits: 650, materials: { plate: 2 } } },
+  { id: 'master_crafter', name: 'Laboratoire clandestin', description: 'Fabriquer 6 armes spéciales.', stat: 'crafts', target: 6, reward: { credits: 750, materials: { copper: 20 } } },
+  { id: 'wave_veteran', name: 'Jusqu’à l’aube', description: 'Terminer 25 vagues.', stat: 'waves', target: 25, reward: { credits: 500, consumables: { grenade: 4 } } },
+  { id: 'field_medic', name: 'Ange des ruines', description: 'Relever 10 alliés.', stat: 'revives', target: 10, reward: { credits: 400, consumables: { medkit: 4 } } },
+
 ];
 
 export function weaponFor(id) { return Object.hasOwn(WEAPONS, id) ? WEAPONS[id] : WEAPONS.carbine; }
@@ -61,3 +75,21 @@ export function canCraft(profile, id) {
   const recipe = WEAPONS[id]?.recipe;
   return !!recipe && !profile.owned.includes(id) && Object.entries(recipe).every(([key, amount]) => (profile.materials[key] || 0) >= amount);
 }
+
+
+export const MISSIONS = [
+  { id: 'last_signal', chapter: 1, name: 'Le dernier signal', district: 'quarantine', goal: 'salvage', target: 3, waves: 2, tier: 1, reward: 180, briefing: 'Le refuge manque de vivres. Récupérez trois réserves, nettoyez les rues et rejoignez le point d’extraction.' },
+  { id: 'relay', chapter: 1, name: 'Rétablir le contact', district: 'quarantine', goal: 'defend', target: 30, waves: 2, tier: 2, reward: 240, briefing: 'Restez dans la zone du relais pendant 30 secondes. La transmission s’arrête si des infectés entrent dans le périmètre.' },
+  { id: 'breach', chapter: 1, name: 'Briser le siège', district: 'quarantine', goal: 'boss', boss: 'brute', waves: 1, tier: 3, reward: 360, briefing: 'Le Briseur bloque l’accès aux usines. Abattez-le avec ses renforts puis évacuez.' },
+  { id: 'cold_iron', chapter: 2, name: 'Fer froid', district: 'foundry', goal: 'salvage', target: 3, waves: 2, tier: 4, reward: 300, briefing: 'Retrouvez les fusibles dans les trois dépôts de la fonderie. Les coureurs patrouillent les voies de chargement.' },
+  { id: 'blackout', chapter: 2, name: 'Sortir du noir', district: 'foundry', goal: 'defend', target: 40, waves: 2, tier: 5, reward: 340, briefing: 'Réactivez le réseau industriel. Protégez le réacteur pendant sa remise sous tension.' },
+  { id: 'overload', chapter: 2, name: 'Surcharge', district: 'foundry', goal: 'boss', boss: 'warden', waves: 2, tier: 6, reward: 450, briefing: 'Le Veilleur arrive avec la seconde vague. Détruisez son noyau pour ouvrir la route du laboratoire.' },
+  { id: 'patient_zero', chapter: 3, name: 'Patient zéro', district: 'laboratory', goal: 'salvage', target: 4, waves: 2, tier: 6, reward: 380, briefing: 'Quatre échantillons sont dispersés dans les ailes du complexe. Rassemblez-les avant l’extraction.' },
+  { id: 'antidote', chapter: 3, name: 'Synthèse', district: 'laboratory', goal: 'defend', target: 45, waves: 3, tier: 7, reward: 450, briefing: 'L’analyse doit tourner pendant 45 secondes. Tenez la station, puis éliminez les infectés restants.' },
+  { id: 'new_dawn', chapter: 3, name: 'Une nouvelle aube', district: 'laboratory', goal: 'boss', bosses: ['brute','warden','matriarch'], waves: 3, tier: 8, reward: 900, briefing: 'Trois vagues, trois monstres. Brisez la dernière horde et évacuez avec les données du remède.' },
+];
+export const missionFor = id => MISSIONS.find(m => m.id === id);
+export const missionUnlocked = (profile, id) => {
+  const index = MISSIONS.findIndex(m => m.id === id);
+  return index >= 0 && (index === 0 || (profile?.campaign?.completed || []).includes(MISSIONS[index - 1].id));
+};

@@ -1,0 +1,20 @@
+DEADBLOCK 0.5 — Armes / provenance
+
+Créateur : Kenney
+Source officielle : https://github.com/KenneyNL/Starter-Kit-FPS
+Révision : 185fd2326d74a5cf858cffc616f87cf9696f9cc0
+Licence des modèles et textures : CC0, indiquée dans le README du créateur.
+Source de la licence : https://github.com/KenneyNL/Starter-Kit-FPS/blob/185fd2326d74a5cf858cffc616f87cf9696f9cc0/README.md
+Texte CC0 : https://creativecommons.org/publicdomain/zero/1.0/
+Téléchargement : 28 octobre 2026.
+
+blaster.glb — SHA256 9c2110d94c1bd7e01bfe6827a3d87e14962a1f721d8b300c67bdd36f492140a1
+https://github.com/KenneyNL/Starter-Kit-FPS/blob/185fd2326d74a5cf858cffc616f87cf9696f9cc0/models/blaster.glb
+blaster-repeater.glb — SHA256 e76220e5ad3877d879e70fe21bd5bc76a5988b8682aa5f7976739e71caf70e05
+https://github.com/KenneyNL/Starter-Kit-FPS/blob/185fd2326d74a5cf858cffc616f87cf9696f9cc0/models/blaster-repeater.glb
+Textures/colormap.png — SHA256 a20683dde0ed575bf6242d68934743ccf954b28f1fc3af9ad781c94b08188f8e
+https://github.com/KenneyNL/Starter-Kit-FPS/blob/185fd2326d74a5cf858cffc616f87cf9696f9cc0/models/Textures/colormap.png
+
+Deux modèles de base téléchargés, utilisés pour douze variantes DEADBLOCK : échelle, orientation, teintes, crosses, canons, chargeur tambour, lunette, bobines, réservoirs et rails ajoutés dans le code.
+Les fichiers sources sont conservés inchangés, avec la texture locale dont ils dépendent.
+Les caractéristiques de combat sont celles de DEADBLOCK. Aucun asset ou statistique Call of Mini Zombies n’est importé.

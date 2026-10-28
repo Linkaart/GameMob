@@ -1,3 +1,4 @@
+import { createImportedWeapon } from './weapon-assets.js';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -118,17 +119,23 @@ function barrel(b, from, to, radius = .07, color = 'iron') {
 }
 
 export const WEAPON_FINISHES = {
-  carbine: { label: 'BOIS RAFISTOLÉ / ACIER RÉCUPÉRÉ', detail: 'Crosse bandée, boîtier olive et chargeur courbe marqué à la peinture.' },
-  smg: { label: 'COMPACT / CROSSE TUBULAIRE', detail: 'Crosse soudée, garde-main perforé et chargeur bleu prolongé.' },
-  shotgun: { label: 'POMPE INDUSTRIELLE / OXYDE ROUGE', detail: 'Pompe rainurée, double tube, cartouches de réserve et crosse usée.' },
-  marksman: { label: 'LONGUE PORTÉE / LUNETTE RÉCUPÉRÉE', detail: 'Canon long, optique bleutée, bipied et attaches de fortune.' },
-  tesla: { label: 'BOBINES CUIVRÉES / ARC CYAN', detail: 'Trois bobines ouvertes, câbles de cuivre et cellule lumineuse.' },
+  pistol: { label: 'COMPACT / BLOC RENFORCÉ', detail: 'Base Kenney compacte, métal mat et poignée ergonomique.' },
+  lmg: { label: 'SOUTIEN / CHARGEUR TAMBOUR', detail: 'Boîtier Kenney, canon lourd et tambour de 80 cartouches.' },
+  cryo: { label: 'CRYOGÉNIE / ANNEAUX POLAIRES', detail: 'Châssis Kenney modifié avec des anneaux froids et une cellule cryogénique.' },
+  cannon: { label: 'PLASMA / CHAMBRE LOURDE', detail: 'Châssis Kenney renforcé, chambre massive et anneaux de confinement orange.' },
+  carbine: { label: 'BOIS RAFISTOLÉ / ACIER RÉCUPÉRÉ', detail: 'Boîtier Kenney, crosse bandée et canon prolongé en acier mat.' },
+  smg: { label: 'COMPACT / CROSSE TUBULAIRE', detail: 'Boîtier Kenney compact, chargeur latéral et finition bleutée.' },
+  shotgun: { label: 'POMPE INDUSTRIELLE / OXYDE ROUGE', detail: 'Base Kenney renforcée, double tube, pompe et crosse de récupération.' },
+  marksman: { label: 'LONGUE PORTÉE / LUNETTE RÉCUPÉRÉE', detail: 'Base Kenney, canon long et lunette à optique bleutée.' },
+  tesla: { label: 'BOBINES CUIVRÉES / ARC CYAN', detail: 'Base Kenney, quatre bobines lumineuses et cellule cyan.' },
   ember: { label: 'DOUBLE RÉSERVOIR / MARQUAGE THERMIQUE', detail: 'Réservoirs orange, durite épaisse et bouche protégée contre la chaleur.' },
   railgun: { label: 'RAILS JUMELÉS / CELLULE VIOLETTE', detail: 'Rails séparés, noyau magnétique et coque renforcée angulaire.' },
-  venom: { label: 'CUVE BIOCHIMIQUE / FLUIDE VERT', detail: 'Réservoir scellé, tubes corrosifs et poignée de laboratoire récupérée.' },
+  venom: { label: 'CUVE BIOCHIMIQUE / FLUIDE VERT', detail: 'Boîtier Kenney, réservoir scellé et canon biochimique élargi.' },
 };
 
 export function createWeaponModel(id = 'carbine') {
+  const imported = createImportedWeapon(id); if (imported) return imported;
+  id = ({ pistol: 'smg', lmg: 'carbine', cryo: 'tesla', cannon: 'venom' })[id] || id;
   if (!Object.hasOwn(WEAPON_FINISHES, id)) id = 'carbine';
   const b = new PropBuilder(`weapon-${id}`); let muzzle;
   if (id === 'carbine') {
@@ -280,6 +287,6 @@ export function createGrenadeModel() {
 
 export function disposeProp(model) {
   // Materials belong to the shared palette; geometries belong to this instance.
-  model.traverse(mesh => { if (mesh.isMesh) mesh.geometry.dispose(); });
+  model.traverse(mesh => { if (mesh.isMesh) { mesh.geometry.dispose(); if (model.userData.importedWeapon) mesh.material.dispose(); } });
   model.removeFromParent();
 }

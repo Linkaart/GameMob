@@ -21,6 +21,27 @@ async function join(url, code, name) {
   return { ws, welcome: await welcome };
 }
 
+test('campaign rooms reject locked or invalid missions and validate each teammate before joining', async t => {
+  const app=createGameServer({tick:false});t.after(()=>app.close());
+  app.server.listen(0,'127.0.0.1');await once(app.server,'listening');
+  const url=`ws://127.0.0.1:${app.server.address().port}/ws`;
+  const a=app.profiles.create(),b=app.profiles.create();
+  const ws=new WebSocket(url);await once(ws,'open');
+  for(const mission of ['new_dawn','__proto__']) {
+    const error=nextMessage(ws,'error');ws.send(JSON.stringify({type:'join',code:'LOCKED',token:a.token,settings:{mode:'campaign',mission}}));
+    assert.match((await error).message,/verrouillée/);assert.equal(app.rooms.size,0);
+  }
+  app.profiles.reward(a.profile.id,{mission:'last_signal'});
+  const welcome=nextMessage(ws,'welcome');ws.send(JSON.stringify({type:'join',code:'LOCKED',token:a.token,settings:{mode:'campaign',mission:'relay',district:'laboratory'}}));
+  assert.equal((await welcome).settings.district,'quarantine');
+  const teammate=new WebSocket(url);await once(teammate,'open');
+  const error=nextMessage(teammate,'error');teammate.send(JSON.stringify({type:'join',code:'LOCKED',token:b.token,settings:{mode:'survival'}}));
+  assert.match((await error).message,/verrouillée/);assert.equal(app.rooms.get('LOCKED').players.size,1);
+  const fake=await fetch(`http://127.0.0.1:${app.server.address().port}/api/profile/action`,{method:'POST',headers:{Authorization:`Bearer ${b.token}`,'Content-Type':'application/json'},body:JSON.stringify({action:'complete',item:'last_signal'})});
+  assert.equal(fake.status,400);assert.deepEqual(app.profiles.get(b.profile.id).campaign.completed,[]);
+  ws.close();teammate.close();
+});
+
 test('two WebSocket clients share authoritative state, other rooms stay isolated, and disconnect cleans up', async t => {
   const app = createGameServer();
   t.after(() => app.close());

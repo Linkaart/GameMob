@@ -1,7 +1,8 @@
+import { loadWeaponAssets } from './weapon-assets.js';
 import * as THREE from 'three';
 import { DISTRICTS, BOSSES, ENEMIES, weaponFor } from '../shared/content.mjs';
-import { ARENA_SIZE, OBSTACLES, PLAYER_COLORS } from '../shared/world.mjs';
-import { createWeaponModel, createCrateModel } from './props.js';
+import { ARENA_SIZE, OBSTACLES, PLAYER_COLORS, worldFor } from '../shared/world.mjs';
+import { createWeaponModel, createCrateModel, disposeProp } from './props.js';
 import { createBossModel, loadBossAssets, disposeBossModel } from './boss-models.js';
 import { characterUnderAim, movementInView, unobstructedCamera } from './camera.js';
 
@@ -172,7 +173,13 @@ function character(color, zombie = false, kind = 'walker', weapon = 'carbine', f
   const ring = new THREE.Mesh(new THREE.RingGeometry(zombie ? 0.36 : 0.52, zombie ? 0.5 : 0.65, 32),
     new THREE.MeshBasicMaterial({ color: zombie ? '#98634e' : color, transparent: true, opacity: zombie ? 0.12 : 0.3, side: THREE.DoubleSide, depthWrite: false }));
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.035; group.add(ring);
-  return { group, rig, legs, ring, weaponModel, kick: 0, phase: Math.random() * 6.28, target: null };
+  const actor = { group, rig, legs, ring, weaponModel, kick: 0, phase: Math.random() * 6.28, target: null, disposed: false };
+  if (!zombie) loadWeaponAssets().then(() => {
+    if (actor.disposed || actor.weaponModel.userData.importedWeapon) return;
+    const replacement = createWeaponModel(weapon); replacement.position.copy(actor.weaponModel.position); replacement.rotation.copy(actor.weaponModel.rotation); replacement.scale.copy(actor.weaponModel.scale);
+    disposeProp(actor.weaponModel); rig.add(replacement); actor.weaponModel = replacement;
+  });
+  return actor;
 }
 
 export class GameScene {
@@ -203,6 +210,7 @@ export class GameScene {
     sun.shadow.mapSize.set(2048, 2048);
     Object.assign(sun.shadow.camera, { left: -35, right: 35, top: 35, bottom: -35, far: 100 });
     sun.shadow.normalBias = 0.025; sun.shadow.bias = -0.0002; this.scene.add(sun);
+    this.world = worldFor('quarantine'); this.environment = new THREE.Group(); this.scene.add(this.environment); this.objectiveMarkers = new Map();
     this.buildWorld(); this.buildAtmosphere(); this.batchWorld(); this.buildAttractScene(); this.configureDistrict('quarantine');
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -222,6 +230,7 @@ export class GameScene {
   }
 
   buildWorld() {
+    const edge = this.world.size / 2;
     const asphalt = paintedTexture(ctx => {
       ctx.fillStyle = '#4c5158'; ctx.fillRect(0, 0, 128, 128);
       for (let i = 0; i < 1800; i++) {
@@ -232,61 +241,61 @@ export class GameScene {
       ctx.beginPath(); ctx.moveTo(0, 20); ctx.lineTo(32, 28); ctx.lineTo(45, 52); ctx.lineTo(76, 66); ctx.stroke();
     });
     asphalt.wrapS = asphalt.wrapT = THREE.RepeatWrapping; asphalt.repeat.set(14, 14);
-    box(this.scene, 120, 0.8, 120, 0, -0.55, 0, '#252d39');
+    box(this.environment, 120, 0.8, 120, 0, -0.55, 0, '#252d39');
     this.groundMaterial = material('#c3c6cf', { map: asphalt, roughness: .72 });
-    box(this.scene, 47, 0.18, 47, 0, -.08, 0, this.groundMaterial);
-    for (let i = -21; i <= 21; i += 4) {
+    box(this.environment, this.world.size + 1, 0.18, this.world.size + 1, 0, -.08, 0, this.groundMaterial);
+    for (let i = -edge + 2; i <= edge - 2; i += 4) {
       if (Math.abs(i) > 5) {
-        box(this.scene, 0.1, 0.015, 1.6, 0, 0.055, i, '#827f66', false);
-        box(this.scene, 1.6, 0.015, 0.1, i, 0.055, 0, '#827f66', false);
+        box(this.environment, 0.1, 0.015, 1.6, 0, 0.055, i, '#827f66', false);
+        box(this.environment, 1.6, 0.015, 0.1, i, 0.055, 0, '#827f66', false);
       }
     }
     for (const z of [-7.5, 7.5]) for (let x = -4.8; x < 5; x += 1.15)
-      box(this.scene, 0.65, 0.016, 1.5, x, 0.06, z, '#7c8289', false);
-    for (const obstacle of OBSTACLES) this.buildObstacle(obstacle);
+      box(this.environment, 0.65, 0.016, 1.5, x, 0.06, z, '#7c8289', false);
+    for (const obstacle of this.world.obstacles) this.buildObstacle(obstacle);
     for (const x of [-6, 6]) for (const z of [-18, 18]) {
-      cylinder(this.scene, 0.13, 4.5, x, 2.25, z, '#33423c');
-      box(this.scene, 0.15, 0.15, 1.2, x, 4.5, z + 0.5, '#33423c');
-      box(this.scene, 0.5, 0.15, 0.7, x, 4.42, z + 1, material('#ffe3a6', { emissive: '#e3b963', emissiveIntensity: 0.8 }));
+      cylinder(this.environment, 0.13, 4.5, x, 2.25, z, '#33423c');
+      box(this.environment, 0.15, 0.15, 1.2, x, 4.5, z + 0.5, '#33423c');
+      box(this.environment, 0.5, 0.15, 0.7, x, 4.42, z + 1, material('#ffe3a6', { emissive: '#e3b963', emissiveIntensity: 0.8 }));
       const light = new THREE.PointLight('#ffc582', 22, 12, 1.8);
-      light.position.set(x, 4.15, z + 1); this.scene.add(light);
+      light.position.set(x, 4.15, z + 1); this.environment.add(light);
     }
     for (const [x, z] of [[-20, -4], [19, 5], [-5, 19], [5, -20], [-19, 19], [20, -20]]) {
-      cylinder(this.scene, 0.25, 1.4, x, 0.7, z, '#5e5140');
+      cylinder(this.environment, 0.25, 1.4, x, 0.7, z, '#5e5140');
       const tree = new THREE.Mesh(new THREE.IcosahedronGeometry(1.8, 0), material('#36483d'));
-      tree.position.set(x, 2.4, z); tree.scale.y = 1.3; tree.castShadow = true; this.scene.add(tree);
-      box(this.scene, 2.6, 0.3, 2.6, x, 0.15, z, '#4b5355');
+      tree.position.set(x, 2.4, z); tree.scale.y = 1.3; tree.castShadow = true; this.environment.add(tree);
+      box(this.environment, 2.6, 0.3, 2.6, x, 0.15, z, '#4b5355');
     }
     for (let i = 0; i < 48; i++) {
       const x = Math.sin(i * 127.1) * 21, z = Math.cos(i * 311.7) * 21;
-      box(this.scene, 0.12 + (i % 3) * 0.06, 0.08, 0.24, x, 0.09, z, i % 2 ? '#7c8471' : '#a29a79', false);
+      box(this.environment, 0.12 + (i % 3) * 0.06, 0.08, 0.24, x, 0.09, z, i % 2 ? '#7c8471' : '#a29a79', false);
     }
-    for (const x of [-23.6, 23.6]) for (let z = -22; z <= 22; z += 2) {
-      box(this.scene, 0.12, 1.35, 0.12, x, 0.67, z, '#60716b');
-      box(this.scene, 0.08, 0.08, 2, x, 0.9, z, '#60716b');
+    for (const x of [-edge - .6, edge + .6]) for (let z = -edge + 1; z <= edge - 1; z += 2) {
+      box(this.environment, 0.12, 1.35, 0.12, x, 0.67, z, '#60716b');
+      box(this.environment, 0.08, 0.08, 2, x, 0.9, z, '#60716b');
     }
-    for (const z of [-23.6, 23.6]) for (let x = -22; x <= 22; x += 2) {
-      box(this.scene, 0.12, 1.35, 0.12, x, 0.67, z, '#60716b');
-      box(this.scene, 2, 0.08, 0.08, x, 0.9, z, '#60716b');
+    for (const z of [-edge - .6, edge + .6]) for (let x = -edge + 1; x <= edge - 1; x += 2) {
+      box(this.environment, 0.12, 1.35, 0.12, x, 0.67, z, '#60716b');
+      box(this.environment, 2, 0.08, 0.08, x, 0.9, z, '#60716b');
     }
     // A quiet skyline frames the playable district.
     for (let i = 0; i < 20; i++) {
-      const angle = i / 20 * Math.PI * 2, radius = 36 + i % 3 * 3;
+      const angle = i / 20 * Math.PI * 2, radius = edge + 13 + i % 3 * 3;
       const height = 5 + i % 5 * 2.3;
       const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius;
-      box(this.scene, 5 + i % 4, height, 6, x, height / 2 - 1, z, '#252d3d');
+      box(this.environment, 5 + i % 4, height, 6, x, height / 2 - 1, z, '#252d3d');
       for (let floor = 1; floor < height - 1; floor += 2) for (const offset of [-1.5, 0, 1.5])
-        box(this.scene, 0.55, 0.9, 0.03, x + offset, floor, z + 3.03, material('#667584', { emissive: '#a99a71', emissiveIntensity: (i + floor) % 3 < 1 ? 0.35 : 0.02 }), false);
+        box(this.environment, 0.55, 0.9, 0.03, x + offset, floor, z + 3.03, material('#667584', { emissive: '#a99a71', emissiveIntensity: (i + floor) % 3 < 1 ? 0.35 : 0.02 }), false);
     }
-    for (const [x, z] of [[-5, -24.5], [24.5, 4]]) this.buildFire(x, z);
+    for (const [x, z] of [[-5, -edge - 1.5], [edge + 1.5, 4]]) this.buildFire(x, z);
     // A distant wall, warning sign and moon give the street a readable horizon.
-    box(this.scene, 18, 4.2, 0.7, 0, 2.1, -25, brickMaterial(18, 4.2, '#acadb5'));
-    box(this.scene, 5.4, 3.2, 0.2, 1, 1.6, -24.5, '#292c36');
-    for (let i = 0; i < 13; i++) box(this.scene, 0.08, 3.1, 0.1, -1.4 + i * 0.4, 1.6, -24.35, '#58565b');
+    box(this.environment, 18, 4.2, 0.7, 0, 2.1, -edge - 2, brickMaterial(18, 4.2, '#acadb5'));
+    box(this.environment, 5.4, 3.2, 0.2, 1, 1.6, -edge - 1.5, '#292c36');
+    for (let i = 0; i < 13; i++) box(this.environment, 0.08, 3.1, 0.1, -1.4 + i * 0.4, 1.6, -edge - 1.35, '#58565b');
     const warning = new THREE.Mesh(new THREE.PlaneGeometry(5.5, 0.75), new THREE.MeshBasicMaterial({ map: textTexture('ZONE CONDAMNÉE', '#c3aa73', '#292c33') }));
-    warning.position.set(1, 3.45, -24.5); this.scene.add(warning);
+    warning.position.set(1, 3.45, -edge - 1.5); this.environment.add(warning);
     const moon = new THREE.Mesh(new THREE.CircleGeometry(2.3, 32), new THREE.MeshBasicMaterial({ color: '#8d9bb3', fog: false }));
-    moon.position.set(12, 20, -60); this.scene.add(moon);
+    moon.position.set(12, 20, -60); this.environment.add(moon);
   }
 
   buildAtmosphere() {
@@ -294,26 +303,39 @@ export class GameScene {
     const puddle = material('#34444b', { metalness: .65, roughness: .12, transparent: true, opacity: .6 });
     for (let i = 0; i < 18; i++) {
       const x = Math.sin(i * 7.3) * 19, z = Math.cos(i * 4.7) * 19;
-      const wet = box(this.scene, 1.2 + i % 3, .012, .6 + i % 2, x, .035, z, puddle, false); wet.rotation.y = i * 1.7;
+      const wet = box(this.environment, 1.2 + i % 3, .012, .6 + i % 2, x, .035, z, puddle, false); wet.rotation.y = i * 1.7;
     }
     for (let i = 0; i < 7; i++) {
-      const crack = box(this.scene, .05, .015, 1.8, -3.5 + Math.sin(i * 5) * 1.4, .04, -3 + i * 2.7, '#202a2b', false); crack.rotation.y = i * .6;
+      const crack = box(this.environment, .05, .015, 1.8, -3.5 + Math.sin(i * 5) * 1.4, .04, -3 + i * 2.7, '#202a2b', false); crack.rotation.y = i * .6;
     }
     // Ruined industrial structures sit beyond the playable perimeter.
-    for (const x of [-29, 28]) {
-      cylinder(this.scene, 2.2, 5, x, 2.5, -12, '#46524c', 12);
-      for (const y of [1, 3, 4.8]) cylinder(this.scene, 2.26, .14, x, y, -12, '#777363', 12);
-      box(this.scene, 2, .2, 9, x, 6, -9, '#4b5755');
-      for (let i = 0; i < 4; i++) { const beam = box(this.scene, .4, 7 + i % 2 * 2, .5, x + (i % 2) * 3, 3, 5 + i * 2.5, '#3e494c'); beam.rotation.z = (i % 2 ? 1 : -1) * .18; }
+    for (const x of [-this.world.size / 2 - 6, this.world.size / 2 + 5]) {
+      cylinder(this.environment, 2.2, 5, x, 2.5, -12, '#46524c', 12);
+      for (const y of [1, 3, 4.8]) cylinder(this.environment, 2.26, .14, x, y, -12, '#777363', 12);
+      box(this.environment, 2, .2, 9, x, 6, -9, '#4b5755');
+      for (let i = 0; i < 4; i++) { const beam = box(this.environment, .4, 7 + i % 2 * 2, .5, x + (i % 2) * 3, 3, 5 + i * 2.5, '#3e494c'); beam.rotation.z = (i % 2 ? 1 : -1) * .18; }
     }
     const count = 320, positions = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) { positions[i*3] = (Math.random()-.5)*54; positions[i*3+1] = Math.random()*18; positions[i*3+2] = (Math.random()-.5)*54; }
+    for (let i = 0; i < count; i++) { positions[i*3] = (Math.random()-.5)*(this.world.size + 8); positions[i*3+1] = Math.random()*18; positions[i*3+2] = (Math.random()-.5)*(this.world.size + 8); }
     const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     this.weather = new THREE.Points(geometry, new THREE.PointsMaterial({ color: '#b6c8ce', size: .045, transparent: true, opacity: .4, depthWrite: false }));
-    this.weather.frustumCulled = false; this.scene.add(this.weather);
+    this.weather.frustumCulled = false; this.environment.add(this.weather);
   }
 
   configureDistrict(id = 'quarantine') {
+    const next = worldFor(id);
+    if (next !== this.world) {
+      const geometries = new Set(), ownedMaterials = new Set(), sharedMaterials = new Set(materials.values());
+      this.environment.traverse(mesh => {
+        if (mesh.geometry && mesh.geometry !== boxGeometry) geometries.add(mesh.geometry);
+        if (mesh.isInstancedMesh) mesh.dispose();
+        if (mesh.material) for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) if (!sharedMaterials.has(mat)) ownedMaterials.add(mat);
+      });
+      for (const geometry of geometries) geometry.dispose();
+      for (const mat of ownedMaterials) { mat.map?.dispose(); mat.dispose(); }
+      this.environment.clear(); this.signs = []; this.wallMaterials = []; this.neons = []; this.fires = [];
+      this.world = next; this.buildWorld(); this.buildAtmosphere(); this.batchWorld();
+    }
     const d = DISTRICTS[id] || DISTRICTS.quarantine; this.district = id;
     this.scene.background.set(d.sky); this.scene.fog.color.set(d.fog);
     this.scene.fog.near = id === 'laboratory' ? 18 : 24;
@@ -327,23 +349,23 @@ export class GameScene {
   }
 
   buildFire(x, z) {
-    cylinder(this.scene, 0.5, 1.15, x, 0.57, z, '#4a3a32');
-    const flame = new THREE.Group(); flame.position.set(x, 1.2, z); this.scene.add(flame);
+    cylinder(this.environment, 0.5, 1.15, x, 0.57, z, '#4a3a32');
+    const flame = new THREE.Group(); flame.position.set(x, 1.2, z); this.environment.add(flame);
     for (let i = 0; i < 3; i++) {
       const mesh = new THREE.Mesh(new THREE.ConeGeometry(0.32 - i * 0.07, 1.3 - i * 0.2, 5), new THREE.MeshBasicMaterial({ color: ['#df6c29', '#f6a249', '#ffe0a0'][i] }));
       mesh.position.set((i - 1) * 0.15, 0.5, i * 0.08); flame.add(mesh);
     }
-    const light = new THREE.PointLight('#ff9d4d', 35, 14, 1.7); light.position.set(x, 2, z); this.scene.add(light);
+    const light = new THREE.PointLight('#ff9d4d', 35, 14, 1.7); light.position.set(x, 2, z); this.environment.add(light);
     this.fires.push({ flame, light, phase: x + z });
   }
 
   batchWorld() {
     // Hundreds of static window/brick/curb pieces can share a single draw call.
     // Keep the animated flames and multi-material buildings separate.
-    this.scene.updateMatrixWorld(true);
+    this.environment.updateMatrixWorld(true);
     const animated = new Set(this.fires.flatMap(fire => fire.flame.children));
     const batches = new Map();
-    this.scene.traverse(mesh => {
+    this.environment.traverse(mesh => {
       if (!mesh.isMesh || Array.isArray(mesh.material) || animated.has(mesh)) return;
       const key = `${mesh.geometry.uuid}/${mesh.material.uuid}/${mesh.castShadow}/${mesh.receiveShadow}`;
       if (!batches.has(key)) batches.set(key, []);
@@ -356,12 +378,12 @@ export class GameScene {
       batch.castShadow = first.castShadow; batch.receiveShadow = first.receiveShadow;
       meshes.forEach((mesh, index) => { batch.setMatrixAt(index, mesh.matrixWorld); mesh.removeFromParent(); });
       batch.instanceMatrix.needsUpdate = true; batch.computeBoundingSphere();
-      this.scene.add(batch);
+      this.environment.add(batch);
     }
   }
 
   buildObstacle(o) {
-    const group = new THREE.Group(); group.position.set(o.x, 0, o.z); this.scene.add(group);
+    const group = new THREE.Group(); group.position.set(o.x, 0, o.z); this.environment.add(group);
     if (o.type === 'shop') {
       box(group, o.w + 0.7, 0.22, o.d + 0.7, 0, 0.11, 0, '#626773');
       const side = brickMaterial(o.d, o.h, '#c0bdba'), front = brickMaterial(o.w, o.h, '#c0bdba');
@@ -426,7 +448,7 @@ export class GameScene {
     this.decorations.forEach(group => { group.visible = !id; });
     this.resize();
     if (!id) {
-      for (const map of [this.players, this.zombies, this.pickups, this.hazards]) {
+      for (const map of [this.players, this.zombies, this.pickups, this.hazards, this.objectiveMarkers]) {
         for (const actor of map.values()) this.removeActor(actor);
         map.clear();
       }
@@ -435,6 +457,8 @@ export class GameScene {
   }
 
   removeActor(actor) {
+    actor.disposed = true;
+    if (actor.weaponModel) { disposeProp(actor.weaponModel); actor.weaponModel = null; }
     this.scene.remove(actor.group);
     if (actor.boss) {
       actor.disposed = true;
@@ -466,6 +490,20 @@ export class GameScene {
         actor.target = item;
       }
     };
+    const objective = state.objective;
+    const points = objective ? (objective.ready ? [{ id: 'exit', ...objective.exit, kind: 'exit' }] : objective.goal === 'boss' ? [] : objective.points.map(p => ({ ...p, kind: objective.goal }))) : [];
+    update(points, this.objectiveMarkers, p => {
+      const group = new THREE.Group(), color = p.kind === 'exit' ? '#77d6bf' : '#dfbe70';
+      const ring = new THREE.Mesh(new THREE.RingGeometry(p.kind === 'defend' ? 3.8 : 1.3, p.kind === 'defend' ? 4 : 1.45, 40), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: .65, depthWrite: false }));
+      ring.rotation.x = -Math.PI / 2; ring.position.y = .07; group.add(ring);
+      const terminal = new THREE.Mesh(new THREE.BoxGeometry(.7, 1.1, .6), new THREE.MeshStandardMaterial({ color: '#35494b', roughness: .7 }));
+      terminal.position.y = .55; terminal.castShadow = true; group.add(terminal);
+      const screen = new THREE.Mesh(new THREE.BoxGeometry(.53, .3, .64), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: .6 })); screen.position.y = .8; group.add(screen);
+      const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: textTexture(p.kind === 'exit' ? 'EXTRACTION' : p.kind === 'defend' ? 'RELAIS' : `RÉSERVE ${p.id + 1}`, color, '#162325'), depthTest: false }));
+      label.position.y = 2; label.scale.set(2.7, .65, 1); group.add(label);
+      return { group, label, disposable: true };
+    });
+    for (const actor of this.objectiveMarkers.values()) actor.group.visible = !actor.target.done;
     update(state.players, this.players, p => {
       const actor = character(p.color, false, 'walker', p.weapon);
       const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: textTexture(p.name.toUpperCase(), p.color, 'rgba(18,29,29,0.7)'), transparent: true, depthTest: false }));
@@ -602,7 +640,7 @@ export class GameScene {
       const desired = this.focus.clone().addScaledVector(backward, distance).addScaledVector(right, portrait ? 0.55 : 0.95);
       desired.y = height;
       const anchor = this.focus.clone(); anchor.y = 1.35;
-      this.camera.position.copy(unobstructedCamera(anchor, desired, OBSTACLES));
+      this.camera.position.copy(unobstructedCamera(anchor, desired, this.world.obstacles));
       this.camera.position.x += (Math.random() - 0.5) * this.shake * 0.3;
       const look = this.focus.clone().addScaledVector(backward, portrait ? -2.3 : -3.6);
       if (!portrait) look.addScaledVector(right, 0.75);

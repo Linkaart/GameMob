@@ -51,7 +51,7 @@ test('mobile refuge: all six pages fit and shop actions remain reachable', async
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 });
   const page = await context.newPage(), errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto('/'); await expect(page.locator('#wallet-value')).toHaveText('450');
-  for (const tab of ['shop','craft','arsenal','contracts','bestiary','home']) {
+  for (const tab of ['shop','craft','arsenal','contracts','bestiary','campaign','home']) {
     await page.locator(`.hub-nav [data-tab="${tab}"]`).tap();
     expect(await page.locator('#hub-content').evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   }
@@ -62,16 +62,16 @@ test('mobile refuge: all six pages fit and shop actions remain reachable', async
   expect(errors).toEqual([]); await context.close();
 });
 
-test('original props: inspect all eight weapon models and five crates, rotate and return to the arsenal', async ({ page }) => {
+test('original props: inspect all twelve weapon models and five crates, rotate and return to the arsenal', async ({ page }) => {
   test.setTimeout(60000);
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto('/?room=PROPS'); await expect(page.locator('#wallet-value')).toHaveText('450');
   await page.locator('.hub-nav [data-tab="arsenal"]').click();
   const weapons = page.locator('[data-inspect-kind="weapon"]');
-  await expect(weapons).toHaveCount(8); await expect(page.locator('.crate-card')).toHaveCount(5);
+  await expect(weapons).toHaveCount(12); await expect(page.locator('.crate-card')).toHaveCount(5);
   await expect.poll(() => page.locator('.prop-preview img').evaluateAll(images => images.every(i => i.complete && i.naturalWidth > 0))).toBe(true);
   await page.screenshot({ path: 'test-results/original-arsenal.png' });
-  for (const id of ['carbine','smg','shotgun','marksman','tesla','ember','railgun','venom']) {
+  for (const id of ['carbine','smg','shotgun','marksman','tesla','ember','railgun','venom','pistol','lmg','cryo','cannon']) {
     const trigger = page.locator(`[data-inspect-kind="weapon"][data-inspect-id="${id}"]`);
     await trigger.click(); await expect(page.locator('.prop-inspector')).toBeVisible();
     await expect(page.locator('.inspection-stage canvas')).toBeVisible();

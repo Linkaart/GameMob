@@ -13,7 +13,7 @@ test('desktop: two players share a room, shoot, reload, and leave', async ({ bro
   await expect(second.locator('#room-code')).toHaveValue('E2E01');
   await second.locator('#player-name').fill('Bob');
   await expect(first.locator('#server-status')).toContainText('OPÉRATIONNEL');
-  await expect(first.locator('canvas')).toBeVisible();
+  await expect(first.locator('#scene canvas')).toBeVisible();
   await first.screenshot({ path: 'test-results/desktop-lobby.png' });
   await first.locator('#player-name').fill('Alice'); await first.locator('#room-code').fill('E2E01');
   await first.locator('#join-button').click();
@@ -71,7 +71,7 @@ test('mobile: lobby fits, touch controls deploy and fire without page scrolling'
   const page = await context.newPage(); const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/?room=MOBILE');
-  await expect(page.locator('canvas')).toBeVisible();
+  await expect(page.locator('#scene canvas')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/mobile-lobby.png' });
   await page.locator('#join-button').tap();

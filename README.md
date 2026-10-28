@@ -1,6 +1,6 @@
 # GameMob · DEADBLOCK
 
-Jeu de survie coopérative en 3D dans le navigateur, pour 1 à 4 joueurs. Un refuge pour préparer ses sorties, une ville infestée, trois boss à chasser et des armes spéciales à fabriquer avec leur butin. Univers, décor procédural, armes et sons originaux ; boss adaptés de modèles Quaternius CC0. Aucun asset de Call of Mini: Zombies n’est utilisé.
+Jeu de survie coopérative en 3D dans le navigateur, pour 1 à 4 joueurs. Un refuge pour préparer ses sorties, une ville infestée, trois boss à chasser et des armes spéciales à fabriquer avec leur butin. Univers, décor procédural et sons originaux ; armes adaptées de bases Kenney CC0 et boss de modèles Quaternius CC0. Aucun asset de Call of Mini: Zombies n’est utilisé.
 
 ## Démarrer
 
@@ -34,15 +34,28 @@ Variables : `PORT` (3000), `HOST` (`0.0.0.0`), `DATA_DIR` (`.data`). La producti
 ## Le refuge
 
 - **Accueil** : sélection de l’ambiance, du mode et du boss ; pseudonyme et code de salle.
-- **Boutique** : trois armes à acheter, trousses de secours, grenades et caisses de matériaux. Les crédits sont gagnés en jouant ; aucun achat en argent réel.
-- **Atelier** : quatre plans d’armes spéciales avec leurs ingrédients, les stocks disponibles et le boss à chasser.
-- **Arsenal** : huit armes, leurs caractéristiques et le choix de celle à emporter.
-- **Contrats** : six objectifs permanents portant sur les éliminations, vagues, boss, réanimations et fabrications. Chaque récompense se récupère une fois.
+- **Boutique** : cinq armes à acheter, trousses de secours, grenades et caisses de matériaux. Les crédits sont gagnés en jouant ; aucun achat en argent réel.
+- **Atelier** : six plans d’armes spéciales avec leurs ingrédients, les stocks disponibles et le boss à chasser.
+- **Arsenal** : douze armes, leurs caractéristiques et le choix de celle à emporter.
+- **Contrats** : quatorze objectifs permanents portant sur les éliminations, vagues, boss, réanimations et fabrications. Chaque récompense se récupère une fois.
+- **Campagne** : neuf opérations en trois chapitres, objectifs de récupération, défense et assaut, extraction et déblocages sauvegardés.
 - **Bestiaire** : six types d’infectés et trois boss, leurs attaques et leurs composants. « Préparer la chasse » sélectionne directement une cible.
 
 Un nouveau survivant reçoit 450 crédits, une carabine Vigile, une trousse de secours et deux grenades. Les achats, recettes, consommables et récompenses sont validés côté serveur. L’équipement et les achats ne peuvent être modifiés qu’au refuge.
 
 ## Sorties et progression
+
+La **version 0.5** ajoute une campagne jouable du début à la fin : **Opération Nouvelle Aube**. Depuis l’onglet Campagne, sélectionnez « Le dernier signal », préparez la mission puis déployez l’escouade. Les neuf opérations se débloquent dans l’ordre, pour chaque profil. Un coéquipier doit lui aussi avoir débloqué la mission choisie. Le serveur contrôle ces accès et les récompenses.
+
+| Chapitre | Missions | Carte |
+| --- | --- | --- |
+| 1 · Quarantaine | Le dernier signal · Rétablir le contact · Briser le siège | 46 × 46 m |
+| 2 · La Fonderie | Fer froid · Sortir du noir · Surcharge | 64 × 64 m |
+| 3 · Zone Zéro | Patient zéro · Synthèse · Une nouvelle aube | 72 × 72 m |
+
+**Récupération** : approchez les terminaux dorés à moins de 2,8 m et maintenez E (bouton + sur mobile) pendant deux secondes pour chacun. **Défense** : restez à moins de 4 m du relais ; les infectés présents dans le cercle interrompent la progression. **Assaut** : éliminez les vagues et les boss indiqués. La dernière mission enchaîne les trois boss. Toutes les missions demandent aussi de nettoyer leurs vagues, puis de regrouper les survivants vivants pendant cinq secondes dans le cercle d’extraction. Sortir du cercle remet ce compte à rebours à zéro. Les alliés à terre reçoivent également la récompense d’une extraction réussie.
+
+Le panneau d’objectif affiche la progression et la distance. La mini-carte montre les obstacles, les alliés, les objectifs et les infectés proches (les boss restent repérés à distance). La première réussite rapporte la prime affichée, 180 XP, 12 ferrailles et 4 circuits ; rejouer rapporte 35 % des crédits, 50 XP, 4 ferrailles et 1 circuit. Les contrats de campagne comptent les missions distinctes terminées. Les sauvegardes 0.2–0.4 sont enrichies sans réinitialiser achats, équipement ou identifiant de profil. Après les neuf missions, un écran de campagne terminée permet de rejouer ou de continuer en survie.
 
 **Survie** : première vague après cinq secondes, neuf secondes de répit entre les vagues ; un boss toutes les trois vagues, dans l’ordre Briseur, Porteuse, Veilleur. Les vagues n’ont pas de limite prédéfinie.
 
@@ -67,6 +80,10 @@ Les infectés deviennent plus variés : rôdeurs (vague 1), coureurs (2), crache
 | Arc Fantôme | 25 ferrailles, 12 circuits, 1 réacteur | Arcs sur trois cibles supplémentaires proches |
 | Braise | 30 ferrailles, 10 réactifs, 1 cœur | Brûlure persistante, chargeur de 60 |
 | Brise-Rempart | 40 ferrailles, 16 circuits, 1 plaque | Traverse jusqu’à quatre cibles |
+| Sentinelle | 220 crédits | Pistolet lourd, 12 cartouches, recharge rapide |
+| Barrage | 900 crédits | Mitrailleuse, 80 cartouches, recharge de 3,4 s |
+| Hiver Noir | 32 ferrailles, 12 circuits, 1 réacteur, 1 cœur | Ralentissement à 45 % de la vitesse pendant 2,5 s |
+| Dernier Soleil | 50 ferrailles, 18 circuits, 2 plaques, 1 réacteur | 130 dégâts directs, 70 dégâts de zone |
 | Ronce Noire | 25 ferrailles, 16 réactifs, 2 cœurs | Dégâts corrosifs sur les voisins de la cible |
 
 L’amélioration U augmente dégâts et cadence jusqu’au niveau 5 **pour la sortie en cours**. Elle coûte des crédits permanents, contrairement à l’acquisition d’une arme, qui reste dans l’arsenal. La réserve de munitions est illimitée, mais chaque arme a sa propre taille de chargeur et sa durée de recharge.
@@ -111,11 +128,11 @@ La version **0.4** remplace les trois boss cubiques par des modèles animés **Q
 
 Les trois modèles ont des transitions entre repos, marche, course en rage et coups de mêlée, déclenchés par l’état de combat. Les pièces ajoutées suivent les os du squelette. Leur lueur s’intensifie en rage. Les fiches du refuge et du bestiaire montrent les modèles du jeu, avec inspection 3D animée. Les fichiers sont servis localement, textures et animations incluses : aucun téléchargement externe n’est nécessaire pendant une partie. Un modèle de secours reste visible si le chargement échoue. Chaque instance libère ses géométries, matériaux et squelette sans invalider ceux des autres boss.
 
-La version 0.3 ajoute huit modèles d’armes originaux : acier usé, bois bandé, chargeurs, lunettes, bobines, réservoirs et rails distincts. Les images de l’arsenal sont rendues à partir des mêmes maillages que ceux portés en partie. Cliquez sur **Examiner en 3D** pour tourner une arme ou une caisse ; glissement, flèches du clavier et retour à la vue initiale sont pris en charge. Le tir fait reculer l’arme et la recharge l’abaisse.
+La version **0.5** utilise deux bases 3D téléchargées dans le dépôt officiel [Kenney / Starter Kit FPS](https://github.com/KenneyNL/Starter-Kit-FPS), sous CC0 : `blaster.glb`, `blaster-repeater.glb` et leur texture. Elles servent aux douze variantes d’armes, complétées par des crosses, canons, lunette, tambour, bobines, réservoirs et rails propres à DEADBLOCK. Ce sont **deux assets de base et douze variantes**, pas douze modèles téléchargés distincts. Sources, révision et empreintes dans [les crédits des armes](public/assets/weapons/CREDITS.txt). Les modèles procéduraux antérieurs servent de secours si le chargement échoue. Les maillages d’une arme sont les mêmes dans l’inspection et en jeu. Le tir fait reculer l’arme et la recharge l’abaisse.
 
 Cinq modèles de caisses distinguent récupération, soins et bonus des trois boss. Une grenade originale remplace aussi son pictogramme dans la boutique. Les géométries sont regroupées par matériau ; les aperçus sont mis en cache et les maillages temporaires libérés à leur fermeture.
 
-Trois variantes visuelles de la même arène : **Quarantaine**, **La Fonderie**, **Zone Zéro**. Elles changent ciel, brume, éclairage, façades, enseignes et particules (pluie ou cendres). La géométrie des rues et les collisions restent communes. Les boss, ennemis et armes disposent de détails visuels distincts. Néons vacillants, feux, flaques réfléchissantes, ruines industrielles, textures de briques et visages sont générés dans le projet. Les éléments statiques sont regroupés en instances pour réduire le coût du rendu.
+Trois cartes distinctes : **Quarantaine**, **La Fonderie**, **Zone Zéro**. Tailles, bâtiments, routes et collisions sont définis dans `shared/world.mjs` et partagés entre serveur, rendu et mini-carte. Chaque carte possède aussi son ciel, sa brume, son éclairage, ses enseignes et ses particules (pluie ou cendres). Les boss, ennemis et armes disposent de détails visuels distincts. Néons vacillants, feux, flaques réfléchissantes, ruines industrielles, textures de briques et visages sont générés dans le projet. Les éléments statiques sont regroupés en instances pour réduire le coût du rendu.
 
 Source demandée pour une prochaine reprise des images/statistiques : [Call of Mini Zombies Wiki — Weapons](https://callofminizombies.fandom.com/wiki/Weapons). L’accès à Fandom a été refusé par le proxy réseau de l’environnement le 27 octobre 2026 (403 avant connexion au site). Les autorisations de domaine ont été préparées en brouillon. **Aucune image ni statistique de ce wiki n’a encore été importée** ; les valeurs de `shared/content.mjs` restent celles du prototype et ne sont pas présentées comme les valeurs officielles.
 
@@ -135,7 +152,7 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:browser
 
 Sur une machine sans Chromium système : `npx playwright install chromium`, puis `npm run test:browser`. Playwright lance son propre serveur sur le port 3100 et utilise une base distincte dans `test-results/profile-data`.
 
-Les tests couvrent déplacements/collisions/caméra, tirs/recharge/réanimation, les trois boss et leurs avertissements, les quatre effets d’armes spéciales, consommables, achats, recettes et récompenses, persistance SQLite, authentification des profils et deux vrais clients WebSocket. Les essais navigateur couvrent les six pages du refuge, achats/équipement conservés au rechargement, déploiement avec l’arme acquise, chasse au boss, tir/recharge et contrôles tactiles portrait/paysage. Captures dans `test-results/`, ignoré par Git. L’émulation mobile ne remplace pas un essai sur téléphone physique.
+Les tests couvrent déplacements/collisions/caméra, tirs/recharge/réanimation, les trois boss et leurs avertissements, les effets d’armes spéciales et le ralentissement, consommables, achats, recettes et récompenses, persistance SQLite, authentification des profils et deux vrais clients WebSocket. Les essais navigateur couvrent les sept pages du refuge, achats/équipement conservés au rechargement, déploiement avec l’arme acquise, chasse au boss, tir/recharge et contrôles tactiles portrait/paysage. Captures dans `test-results/`, ignoré par Git. L’émulation mobile ne remplace pas un essai sur téléphone physique.
 
 ## Organisation et limites
 
@@ -146,6 +163,8 @@ Les tests couvrent déplacements/collisions/caméra, tirs/recharge/réanimation,
 - `server/navigation.mjs`, `shared/world.mjs` : navigation et collisions.
 - `src/hub.js`, `src/hub.css` : refuge, boutique, atelier, arsenal et contrats.
 - `src/scene.js`, `src/camera.js` : rendu Three.js et caméra.
+- `src/weapon-assets.js`, `public/assets/weapons/` : bases Kenney, texture locale et douze adaptations.
+- `src/mission-hud.js`, `src/campaign.css` : objectifs, mini-carte et sélection de campagne.
 - `src/boss-models.js`, `public/assets/bosses/` : modèles téléchargés, provenance, équipements ajoutés et animations des boss.
 - `src/props.js`, `src/prop-viewer.js` : modèles originaux, vignettes et inspection 3D.
 - `src/main.js`, `src/hud.css` : réseau, entrées, audio et ATH.

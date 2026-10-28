@@ -5,6 +5,7 @@ import { weaponFor, BOSSES } from '../shared/content.mjs';
 import './prop-viewer.css';
 
 const thumbnails = new Map();
+export function refreshWeaponThumbnails() { for (const key of thumbnails.keys()) if (key.startsWith('weapon/')) thumbnails.delete(key); }
 let studio;
 function makeModel(kind, id) { return kind === 'boss' ? createBossModel(id) : kind === 'crate' ? createCrateModel(id) : kind === 'supply' ? createGrenadeModel() : createWeaponModel(id); }
 function lightScene(scene) {
@@ -104,7 +105,7 @@ export class PropInspector {
   open(kind, id, trigger) {
     if (kind === 'boss' && !Object.hasOwn(BOSS_DESIGNS, id) || kind === 'weapon' && !Object.hasOwn(WEAPON_FINISHES, id) || kind === 'crate' && !Object.hasOwn(CRATES, id) || !['weapon','crate','supply','boss'].includes(kind)) return;
     const spec = kind === 'boss' ? BOSSES[id] : kind === 'weapon' ? weaponFor(id) : kind === 'crate' ? CRATES[id] : { name: 'Grenade artisanale', description: 'Une coque striée, une cuillère métallique et un anneau de récupération.' };
-    this.modal.querySelector('.inspection-top > span').textContent = kind === 'boss' ? 'BESTIAIRE / QUATERNIUS · ADAPTATION DEADBLOCK' : 'ATELIER DU REFUGE / MODÈLE ORIGINAL';
+    this.modal.querySelector('.inspection-top > span').textContent = kind === 'boss' ? 'BESTIAIRE / QUATERNIUS · ADAPTATION DEADBLOCK' : kind === 'weapon' ? 'ARMURERIE / KENNEY · ADAPTATION DEADBLOCK' : 'ATELIER DU REFUGE / MODÈLE ORIGINAL';
     this.previousFocus = trigger || document.activeElement;
     this.modal.querySelector('#inspection-name').textContent = spec.name;
     this.modal.querySelector('#inspection-finish').textContent = kind === 'boss' ? BOSS_DESIGNS[id].label : kind === 'weapon' ? WEAPON_FINISHES[id].label : 'CAISSES ET ÉQUIPEMENT / RÉCUPÉRATION';

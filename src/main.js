@@ -1,3 +1,4 @@
+import { MissionHUD } from './mission-hud.js';
 import '@fontsource/barlow-condensed/latin-600.css';
 import '@fontsource/barlow-condensed/latin-700.css';
 import '@fontsource/barlow-condensed/latin-800.css';
@@ -70,7 +71,7 @@ document.querySelector('#app').innerHTML = `
       <div class="bottom-controls"><span><kbd>R</kbd> Recharger</span><span><kbd>MAJ</kbd> Courir</span><span><kbd>E</kbd> Relever</span><span><kbd>U</kbd> Améliorer</span></div>
       <div class="weapon-panel"><button class="upgrade-button" id="upgrade-button">${icon('upgrade')}<span id="upgrade-label">AMÉLIORER · 120 CR</span></button><div class="weapon-card"><div class="weapon-name">CARABINE<strong id="weapon-level">NIVEAU 01</strong></div><div><div class="ammo"><span id="ammo-value">24</span><small>/ ∞</small></div><div class="reload-status" id="reload-status">24 PAR CHARGEUR</div></div></div></div>
     </div>
-    <div class="mobile-controls"><div id="move-stick" class="touch-stick move-stick" role="group" aria-label="Joystick de déplacement"><div class="knob"></div><span class="stick-label">BOUGER</span></div><div id="aim-stick" class="touch-stick aim-stick" role="group" aria-label="Joystick de visée et de tir"><div class="knob"></div><span class="stick-label">VISER / TIRER</span></div><div class="touch-actions"><button id="touch-revive" aria-label="Maintenir pour relever un allié">${icon('plus')}</button><button id="touch-reload" aria-label="Recharger">${icon('reload')}</button></div></div>
+    <div class="mobile-controls"><div id="move-stick" class="touch-stick move-stick" role="group" aria-label="Joystick de déplacement"><div class="knob"></div><span class="stick-label">BOUGER</span></div><div id="aim-stick" class="touch-stick aim-stick" role="group" aria-label="Joystick de visée et de tir"><div class="knob"></div><span class="stick-label">VISER / TIRER</span></div><div class="touch-actions"><button id="touch-revive" aria-label="Maintenir pour interagir ou relever un allié">${icon('plus')}</button><button id="touch-reload" aria-label="Recharger">${icon('reload')}</button></div></div>
   </section>
   <div id="crosshair" class="crosshair hidden"></div><div id="damage-flash" class="damage-flash"></div>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
@@ -153,6 +154,7 @@ catch (error) {
 
 const hub = new Hub(scene);
 
+const missionHUD = new MissionHUD(document.querySelector('#hud'));
 let socket = null, playerId = null, state = null, lastRoom = '', lastName = '';
 let mouse = { x: innerWidth / 2, y: innerHeight / 2, active: false, fire: false };
 let orbitPointer = null, orbitX = 0;
@@ -301,8 +303,9 @@ async function connect(name, code) {
 
 function updateHUD() {
   const p = state.players.find(player => player.id === playerId); if (!p) return;
+  missionHUD.update(state, p);
   const preparing = state.phase === 'breather';
-  text('#wave-label', preparing ? 'PROCHAINE VAGUE' : 'VAGUE EN COURS');
+  text('#wave-label', state.phase === 'extraction' ? 'EXTRACTION' : state.phase === 'objective' ? 'OBJECTIF RESTANT' : preparing ? 'PROCHAINE VAGUE' : 'VAGUE EN COURS');
   text('#wave-number', String(state.wave + (preparing ? 1 : 0)).padStart(2, '0'));
   text('#wave-sub', state.phase === 'over' ? 'Escouade à terre' : preparing ? `Arrivée dans ${Math.max(0, Math.ceil(state.timer))} s` : `${state.remaining} menace${state.remaining > 1 ? 's' : ''} restante${state.remaining > 1 ? 's' : ''}`);
   text('#health-value', Math.ceil(p.hp)); $('#health-fill').style.width = p.hp + '%';
@@ -365,9 +368,9 @@ function updateHUD() {
   show('#gameover', ['over', 'victory'].includes(state.phase));
   if (['over', 'victory'].includes(state.phase)) {
     show('#help', false);
-    text('#gameover .eyebrow', state.phase === 'victory' ? 'CHASSE TERMINÉE' : 'TRANSMISSION INTERROMPUE');
-    text('#gameover h2', state.phase === 'victory' ? 'CIBLE NEUTRALISÉE.' : 'L’ESCOUADE EST TOMBÉE.');
-    text('#gameover .modal > p', 'Les crédits et composants gagnés sont conservés. Retrouvez-les au refuge.');
+    text('#gameover .eyebrow', state.phase === 'victory' ? (state.objective ? 'MISSION ACCOMPLIE' : 'CHASSE TERMINÉE') : 'TRANSMISSION INTERROMPUE');
+    text('#gameover h2', state.phase === 'victory' ? (state.objective ? 'ESCOUADE EXTRAITE.' : 'CIBLE NEUTRALISÉE.') : 'L’ESCOUADE EST TOMBÉE.');
+    text('#gameover .modal > p', state.objective && state.phase === 'victory' ? 'Mission enregistrée. Retrouvez la prochaine opération et vos récompenses au refuge.' : 'Les crédits et composants gagnés sont conservés. Retrouvez-les au refuge.');
     text('#run-loot', Object.entries(p.loot || {}).map(([id, count]) => `${count} ${MATERIALS[id].name}`).join(' · ') || 'Aucun composant récupéré sur cette sortie.');
     text('#result-wave', state.wave); text('#result-kills', state.teamKills);
     text('#result-time', `${Math.floor(state.elapsed / 60)}:${String(Math.floor(state.elapsed % 60)).padStart(2, '0')}`);
