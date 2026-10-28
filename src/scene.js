@@ -1,5 +1,7 @@
 import { loadWeaponAssets } from './weapon-assets.js';
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { surface, radialTexture } from './surface-materials.js';
 import { DISTRICTS, BOSSES, ENEMIES, weaponFor } from '../shared/content.mjs';
 import { ARENA_SIZE, OBSTACLES, PLAYER_COLORS, worldFor } from '../shared/world.mjs';
 import { createWeaponModel, createCrateModel, disposeProp } from './props.js';
@@ -7,7 +9,17 @@ import { createBossModel, loadBossAssets, disposeBossModel } from './boss-models
 import { characterUnderAim, movementInView, unobstructedCamera } from './camera.js';
 
 const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
+const roundedGeometry = new RoundedBoxGeometry(1, 1, 1, 2, .07);
+const contactTexture = radialTexture();
 const materials = new Map();
+function cloth(color) {
+  const key = 'cloth-' + color;
+  if (!materials.has(key)) materials.set(key, new THREE.MeshStandardMaterial({ color, map: surface('cloth'), bumpMap: surface('cloth'), bumpScale: .018, roughness: .98 }));
+  return materials.get(key);
+}
+function bodyBox(parent, ...args) {
+  const mesh = box(parent, ...args); mesh.geometry = roundedGeometry; return mesh;
+}
 function material(color, extra = {}) {
   if (extra.map) return new THREE.MeshStandardMaterial({ color, roughness: 0.88, ...extra });
   const key = color + JSON.stringify(extra);
@@ -94,8 +106,8 @@ function bossCharacter(kind) {
     if (actor.disposed) return;
     const model = createBossModel(kind); if (!model) return;
     fallback.group.removeFromParent();
-    fallback.group.traverse(mesh => { if (mesh.isMesh && mesh.geometry !== boxGeometry) mesh.geometry.dispose(); });
-    fallback.ring.material.dispose(); actor.fallback = null;
+    fallback.group.traverse(mesh => { if (mesh.isMesh && mesh.geometry !== boxGeometry && mesh.geometry !== roundedGeometry) mesh.geometry.dispose(); });
+    fallback.ring.material.dispose(); fallback.contact?.material.dispose(); actor.fallback = null;
     rig.add(model); actor.model = model;
   };
   loadBossAssets().then(install);
@@ -108,55 +120,70 @@ function character(color, zombie = false, kind = 'walker', weapon = 'carbine', f
   const rig = new THREE.Group(); group.add(rig);
   const skin = zombie ? (BOSSES[kind]?.color || ENEMIES[kind]?.color || '#9eac7e') : '#dcba94';
   const slot = Math.max(0, PLAYER_COLORS.indexOf(color));
-  const shirt = zombie ? kind === 'tank' ? '#756379' : kind === 'runner' ? '#a27561' : '#a7ad94' : ['#4567a7', '#885568', '#af8450', '#527f79'][slot];
+  const shirtColor = zombie ? kind === 'tank' ? '#756379' : kind === 'runner' ? '#a27561' : '#a7ad94' : ['#3d5265', '#684f53', '#776c4b', '#3e625d'][slot];
+  const shirt = cloth(shirtColor);
   const hair = ['#714523', '#352d2c', '#a8783b', '#433735'][slot];
   const legs = []; let weaponModel = null;
   for (const side of [-1, 1]) {
     const leg = new THREE.Group(); leg.position.set(side * 0.19, 0.62, 0); rig.add(leg);
-    box(leg, 0.3, 0.48, 0.33, 0, -0.22, 0, zombie ? '#4c535b' : '#303d58');
-    box(leg, 0.35, 0.22, 0.48, 0, -0.48, 0.06, '#292829'); legs.push(leg);
+    bodyBox(leg, 0.3, 0.48, 0.33, 0, -0.22, 0, cloth(zombie ? '#4c535b' : '#303d58'));
+    bodyBox(leg, 0.35, 0.22, 0.48, 0, -0.48, 0.06, '#292829'); legs.push(leg);
   }
-  box(rig, 0.72, 0.65, 0.46, 0, 0.94, 0, shirt);
-  box(rig, 0.75, 0.1, 0.48, 0, 0.66, 0, zombie ? '#635f53' : '#c2a363');
+  bodyBox(rig, 0.72, 0.65, 0.46, 0, 0.94, 0, shirt);
+  bodyBox(rig, 0.75, 0.1, 0.48, 0, 0.66, 0, zombie ? '#635f53' : '#c2a363');
   const skinMat = material(skin), face = faceMaterial(skin, zombie);
-  box(rig, 0.96, 0.87, 0.85, 0, 1.64, 0.01, [skinMat, skinMat, skinMat, skinMat, face, skinMat]);
-  for (const side of [-1, 1]) box(rig, 0.12, 0.23, 0.18, side * 0.51, 1.54, 0.02, skin);
+  bodyBox(rig, 0.96, 0.87, 0.85, 0, 1.64, 0.01, [skinMat, skinMat, skinMat, skinMat, face, skinMat]);
+  for (const side of [-1, 1]) bodyBox(rig, 0.12, 0.23, 0.18, side * 0.51, 1.54, 0.02, skin);
   if (!zombie) {
-    box(rig, 1.01, 0.24, 0.91, 0, 2.04, -0.02, hair);
-    box(rig, 1.01, 0.43, 0.13, 0, 1.77, -0.43, hair);
-    for (const side of [-1, 1]) box(rig, 0.13, 0.35, 0.71, side * 0.45, 1.88, -0.04, hair);
-    for (let i = 0; i < 5; i++) box(rig, 0.12, 0.16 + (i % 2) * 0.08, 0.08, -0.35 + i * 0.17, 1.91, 0.45, hair);
-    for (let i = 0; i < 12; i++) box(rig, 0.028, 0.1, 0.012, -0.42 + (i % 6) * 0.16, 1.77 + Math.floor(i / 6) * 0.19, -0.505, '#52351f');
-    box(rig, 0.47, 0.25, 0.16, 0, 1.15, -0.27, '#33486d');
-    box(rig, 0.39, 0.06, 0.025, 0, 0.9, -0.24, color);
+    bodyBox(rig, 1.01, 0.24, 0.91, 0, 2.04, -0.02, hair);
+    bodyBox(rig, 1.01, 0.43, 0.13, 0, 1.77, -0.43, hair);
+    for (const side of [-1, 1]) bodyBox(rig, 0.13, 0.35, 0.71, side * 0.45, 1.88, -0.04, hair);
+    for (let i = 0; i < 5; i++) bodyBox(rig, 0.12, 0.16 + (i % 2) * 0.08, 0.08, -0.35 + i * 0.17, 1.91, 0.45, hair);
+    for (let i = 0; i < 12; i++) bodyBox(rig, 0.028, 0.1, 0.012, -0.42 + (i % 6) * 0.16, 1.77 + Math.floor(i / 6) * 0.19, -0.505, '#52351f');
+    bodyBox(rig, 0.47, 0.25, 0.16, 0, 1.15, -0.27, '#33486d');
+    bodyBox(rig, 0.39, 0.06, 0.025, 0, 0.9, -0.24, color);
+    bodyBox(rig, .51, .55, .25, 0, .98, -.34, cloth('#444d46'));
+    bodyBox(rig, .43, .23, .1, 0, .81, -.5, cloth('#5b6253'));
+    for (const side of [-1, 1]) {
+      bodyBox(rig, .075, .59, .055, side * .24, 1.02, -.49, '#252e2d');
+      bodyBox(rig, .085, .51, .05, side * .24, 1.01, .25, '#303b38');
+      bodyBox(rig, .19, .23, .11, side * .2, .84, .28, cloth('#616a56'));
+      bodyBox(legs[side < 0 ? 0 : 1], .24, .18, .08, 0, -.22, .19, '#464c4b');
+    }
+    bodyBox(rig, .16, .045, .02, 0, .85, -.56, '#b9b29a');
+    bodyBox(rig, .04, .16, .02, 0, .85, -.56, '#b9b29a');
+    cylinder(rig, .065, .34, .32, .84, -.35, '#80866a', 10);
     weaponModel = createWeaponModel(weapon); weaponModel.scale.setScalar(.44);
     weaponModel.rotation.y = -Math.PI / 2; weaponModel.position.set(.38, 1.04, .55); rig.add(weaponModel);
   } else {
-    box(rig, 0.55, 0.07, 0.6, -0.15, 2.09, -0.08, '#565846');
-    box(rig, 0.09, 0.47, 0.04, 0, 0.95, 0.25, '#77534e');
+    for (let i = 0; i < 4; i++) {
+      const tear = bodyBox(rig, .05, .15, .015, -.23 + i * .15, .97 - i % 2 * .12, .243, '#554a40'); tear.rotation.z = -.4;
+    }
+    bodyBox(rig, 0.55, 0.07, 0.6, -0.15, 2.09, -0.08, '#565846');
+    bodyBox(rig, 0.09, 0.47, 0.04, 0, 0.95, 0.25, '#77534e');
     for (const side of [-1, 1]) {
-      const lapel = box(rig, 0.14, 0.26, 0.06, side * 0.15, 1.12, 0.25, '#c2c1ac'); lapel.rotation.z = side * -0.32;
-      box(rig, 0.18, 0.16, 0.025, side * 0.24, 0.76, 0.24, '#777b65');
+      const lapel = bodyBox(rig, 0.14, 0.26, 0.06, side * 0.15, 1.12, 0.25, '#c2c1ac'); lapel.rotation.z = side * -0.32;
+      bodyBox(rig, 0.18, 0.16, 0.025, side * 0.24, 0.76, 0.24, '#777b65');
     }
   }
   for (const side of [-1, 1]) {
-    box(rig, 0.25, 0.31, 0.29, side * 0.47, 1.04, 0.05, shirt);
-    box(rig, 0.25, 0.24, zombie ? 0.56 : 0.39, side * 0.47, 0.94, zombie ? 0.37 : 0.3, skin);
-    if (!zombie) box(rig, 0.27, 0.08, 0.3, side * 0.47, 1.04, 0.06, color);
+    bodyBox(rig, 0.25, 0.31, 0.29, side * 0.47, 1.04, 0.05, shirt);
+    bodyBox(rig, 0.25, 0.24, zombie ? 0.56 : 0.39, side * 0.47, 0.94, zombie ? 0.37 : 0.3, skin);
+    if (!zombie) bodyBox(rig, 0.27, 0.08, 0.3, side * 0.47, 1.04, 0.06, color);
   }
   if (zombie && (kind === 'armored' || kind === 'brute' || kind === 'warden')) {
     const armor = kind === 'warden' ? '#536e7a' : '#6c655c';
-    box(rig, 1.07, .27, 1.02, 0, 2.08, .01, armor);
-    box(rig, .8, .5, .14, 0, .99, .3, armor);
-    for (const side of [-1, 1]) box(rig, .4, .3, .5, side * .5, 1.2, .03, armor);
+    bodyBox(rig, 1.07, .27, 1.02, 0, 2.08, .01, armor);
+    bodyBox(rig, .8, .5, .14, 0, .99, .3, armor);
+    for (const side of [-1, 1]) bodyBox(rig, .4, .3, .5, side * .5, 1.2, .03, armor);
     if (kind === 'brute') {
-      for (const side of [-1, 1]) { box(rig, .43, .4, .48, side * .55, .9, .48, '#827968'); box(rig, .49, .12, .52, side * .55, .92, .48, '#a59470'); }
-      for (let i = 0; i < 3; i++) box(rig, .08, .27, .05, -.2 + i * .2, .96, .4, '#deac66');
+      for (const side of [-1, 1]) { bodyBox(rig, .43, .4, .48, side * .55, .9, .48, '#827968'); bodyBox(rig, .49, .12, .52, side * .55, .92, .48, '#a59470'); }
+      for (let i = 0; i < 3; i++) bodyBox(rig, .08, .27, .05, -.2 + i * .2, .96, .4, '#deac66');
     }
     if (kind === 'warden') {
-      box(rig, .62, .16, .03, 0, 1.7, .46, material('#8ae6ee', { emissive: '#79d7e9', emissiveIntensity: 2 }));
-      box(rig, .32, .33, .13, 0, 1, .42, material('#81dded', { emissive: '#71cfe6', emissiveIntensity: 2 }));
-      for (const side of [-1, 1]) { cylinder(rig, .14, .8, side * .4, 1.35, -.4, '#566c73'); box(rig, .12, .09, .12, side * .4, 1.8, -.4, material('#94e9ee', { emissive: '#7fe2ed', emissiveIntensity: 2 })); }
+      bodyBox(rig, .62, .16, .03, 0, 1.7, .46, material('#8ae6ee', { emissive: '#79d7e9', emissiveIntensity: 2 }));
+      bodyBox(rig, .32, .33, .13, 0, 1, .42, material('#81dded', { emissive: '#71cfe6', emissiveIntensity: 2 }));
+      for (const side of [-1, 1]) { cylinder(rig, .14, .8, side * .4, 1.35, -.4, '#566c73'); bodyBox(rig, .12, .09, .12, side * .4, 1.8, -.4, material('#94e9ee', { emissive: '#7fe2ed', emissiveIntensity: 2 })); }
     }
   }
   if (zombie && ['spitter', 'exploder', 'matriarch'].includes(kind)) {
@@ -165,7 +192,7 @@ function character(color, zombie = false, kind = 'walker', weapon = 'carbine', f
       const spore = new THREE.Mesh(new THREE.IcosahedronGeometry(.19 + (i % 2) * .06, 0), material(glow, { emissive: glow, emissiveIntensity: .4 }));
       spore.position.set(Math.sin(i * 2.3) * .5, 1.1 + (i % 3) * .4, -.4); rig.add(spore);
     }
-    box(rig, .45, .35, .18, 0, .9, .3, material(glow, { emissive: glow, emissiveIntensity: .25 }));
+    bodyBox(rig, .45, .35, .18, 0, .9, .3, material(glow, { emissive: glow, emissiveIntensity: .25 }));
   }
   if (BOSSES[kind]) { group.scale.setScalar(kind === 'brute' ? 2.05 : 1.85); }
   if (kind === 'tank') group.scale.setScalar(1.45);
@@ -173,7 +200,9 @@ function character(color, zombie = false, kind = 'walker', weapon = 'carbine', f
   const ring = new THREE.Mesh(new THREE.RingGeometry(zombie ? 0.36 : 0.52, zombie ? 0.5 : 0.65, 32),
     new THREE.MeshBasicMaterial({ color: zombie ? '#98634e' : color, transparent: true, opacity: zombie ? 0.12 : 0.3, side: THREE.DoubleSide, depthWrite: false }));
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.035; group.add(ring);
-  const actor = { group, rig, legs, ring, weaponModel, kick: 0, phase: Math.random() * 6.28, target: null, disposed: false };
+  const contact = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), material('#ffffff', { map: contactTexture, transparent: true, depthWrite: false, roughness: 1 }));
+  contact.rotation.x = -Math.PI / 2; contact.position.y = .025; group.add(contact);
+  const actor = { group, rig, legs, ring, contact, weaponModel, kick: 0, phase: Math.random() * 6.28, target: null, disposed: false };
   if (!zombie) loadWeaponAssets().then(() => {
     if (actor.disposed || actor.weaponModel.userData.importedWeapon) return;
     const replacement = createWeaponModel(weapon); replacement.position.copy(actor.weaponModel.position); replacement.rotation.copy(actor.weaponModel.rotation); replacement.scale.copy(actor.weaponModel.scale);
@@ -193,7 +222,7 @@ export class GameScene {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    this.renderer.toneMappingExposure = 1.08;
     container.append(this.renderer.domElement);
     this.lobbyCamera = new THREE.OrthographicCamera(-20, 20, 20, -20, 0.1, 120);
     this.followCamera = new THREE.PerspectiveCamera(54, 1, 0.08, 100);
@@ -204,12 +233,13 @@ export class GameScene {
     this.effects = []; this.decorations = []; this.fires = []; this.state = null; this.id = null;
     this.raycaster = new THREE.Raycaster(); this.aimPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.04);
     this.shake = 0; this.time = 0;
-    this.scene.add(new THREE.HemisphereLight('#a4b3dd', '#3a3b46', 1.65));
+    this.scene.add(new THREE.HemisphereLight('#b8c9d5', '#32302d', 1.3));
     const sun = this.sun = new THREE.DirectionalLight('#adc5ee', 2.2);
     sun.position.set(-20, 30, 8); sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     Object.assign(sun.shadow.camera, { left: -35, right: 35, top: 35, bottom: -35, far: 100 });
     sun.shadow.normalBias = 0.025; sun.shadow.bias = -0.0002; this.scene.add(sun);
+    this.muzzleLight = new THREE.PointLight('#ffcb87', 0, 7, 2); this.scene.add(this.muzzleLight); this.flashTime = 0;
     this.world = worldFor('quarantine'); this.environment = new THREE.Group(); this.scene.add(this.environment); this.objectiveMarkers = new Map();
     this.buildWorld(); this.buildAtmosphere(); this.batchWorld(); this.buildAttractScene(); this.configureDistrict('quarantine');
     this.resize();
@@ -231,18 +261,10 @@ export class GameScene {
 
   buildWorld() {
     const edge = this.world.size / 2;
-    const asphalt = paintedTexture(ctx => {
-      ctx.fillStyle = '#4c5158'; ctx.fillRect(0, 0, 128, 128);
-      for (let i = 0; i < 1800; i++) {
-        ctx.fillStyle = i % 2 ? '#ffffff0c' : '#00000012';
-        ctx.fillRect((i * 47 + i % 13 * 7) % 128, (i * 71 + i % 17 * 3) % 128, 1, 1);
-      }
-      ctx.strokeStyle = '#252c3280'; ctx.lineWidth = 0.8;
-      ctx.beginPath(); ctx.moveTo(0, 20); ctx.lineTo(32, 28); ctx.lineTo(45, 52); ctx.lineTo(76, 66); ctx.stroke();
-    });
-    asphalt.wrapS = asphalt.wrapT = THREE.RepeatWrapping; asphalt.repeat.set(14, 14);
+    const asphalt = surface('asphalt').clone(); asphalt.needsUpdate = true;
+    asphalt.repeat.set(this.world.size / 2, this.world.size / 2);
     box(this.environment, 120, 0.8, 120, 0, -0.55, 0, '#252d39');
-    this.groundMaterial = material('#c3c6cf', { map: asphalt, roughness: .72 });
+    this.groundMaterial = material('#c3c6cf', { map: asphalt, bumpMap: asphalt, bumpScale: .02, roughness: .58, metalness: .12 });
     box(this.environment, this.world.size + 1, 0.18, this.world.size + 1, 0, -.08, 0, this.groundMaterial);
     for (let i = -edge + 2; i <= edge - 2; i += 4) {
       if (Math.abs(i) > 5) {
@@ -262,8 +284,11 @@ export class GameScene {
     }
     for (const [x, z] of [[-20, -4], [19, 5], [-5, 19], [5, -20], [-19, 19], [20, -20]]) {
       cylinder(this.environment, 0.25, 1.4, x, 0.7, z, '#5e5140');
-      const tree = new THREE.Mesh(new THREE.IcosahedronGeometry(1.8, 0), material('#36483d'));
-      tree.position.set(x, 2.4, z); tree.scale.y = 1.3; tree.castShadow = true; this.environment.add(tree);
+      cylinder(this.environment, .12, 3.4, x, 2, z, '#45433d');
+      for (let i = 0; i < 4; i++) {
+        const branch = box(this.environment, .08, 1.5, .09, x + Math.sin(i * 2) * .45, 2.5 + i * .15, z + Math.cos(i * 2) * .4, '#494840');
+        branch.rotation.z = Math.sin(i * 2) * .7; branch.rotation.x = Math.cos(i * 2) * .6;
+      }
       box(this.environment, 2.6, 0.3, 2.6, x, 0.15, z, '#4b5355');
     }
     for (let i = 0; i < 48; i++) {
@@ -303,10 +328,21 @@ export class GameScene {
     const puddle = material('#34444b', { metalness: .65, roughness: .12, transparent: true, opacity: .6 });
     for (let i = 0; i < 18; i++) {
       const x = Math.sin(i * 7.3) * 19, z = Math.cos(i * 4.7) * 19;
-      const wet = box(this.environment, 1.2 + i % 3, .012, .6 + i % 2, x, .035, z, puddle, false); wet.rotation.y = i * 1.7;
+      const wet = new THREE.Mesh(new THREE.CircleGeometry(1, 11), puddle); wet.rotation.x = -Math.PI / 2; wet.rotation.z = i * 1.7; wet.scale.set(1.2 + i % 3, .6 + i % 2, 1); wet.position.set(x, .025, z); this.environment.add(wet);
     }
     for (let i = 0; i < 7; i++) {
       const crack = box(this.environment, .05, .015, 1.8, -3.5 + Math.sin(i * 5) * 1.4, .04, -3 + i * 2.7, '#202a2b', false); crack.rotation.y = i * .6;
+    }
+    const stainTexture = radialTexture();
+    const stainMaterial = new THREE.MeshBasicMaterial({ map: stainTexture, transparent: true, depthWrite: false, color: '#4a3029' });
+    for (let i = 0; i < 22; i++) {
+      const stain = new THREE.Mesh(new THREE.PlaneGeometry(2 + i % 4, 1 + i % 3), stainMaterial);
+      stain.rotation.x = -Math.PI / 2; stain.rotation.z = i;
+      stain.position.set(Math.sin(i * 13.2) * (this.world.size / 2 - 2), .03, Math.cos(i * 5.7) * (this.world.size / 2 - 2)); this.environment.add(stain);
+    }
+    for (const x of [-4.5, 4.5]) for (const z of [-12, 12]) {
+      box(this.environment, .7, .015, 1.2, x, .035, z, '#20292b', false);
+      for (let j = 0; j < 7; j++) box(this.environment, .65, .018, .04, x, .048, z - .5 + j * .16, '#515c5e', false);
     }
     // Ruined industrial structures sit beyond the playable perimeter.
     for (const x of [-this.world.size / 2 - 6, this.world.size / 2 + 5]) {
@@ -327,7 +363,7 @@ export class GameScene {
     if (next !== this.world) {
       const geometries = new Set(), ownedMaterials = new Set(), sharedMaterials = new Set(materials.values());
       this.environment.traverse(mesh => {
-        if (mesh.geometry && mesh.geometry !== boxGeometry) geometries.add(mesh.geometry);
+        if (mesh.geometry && mesh.geometry !== boxGeometry && mesh.geometry !== roundedGeometry) geometries.add(mesh.geometry);
         if (mesh.isInstancedMesh) mesh.dispose();
         if (mesh.material) for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) if (!sharedMaterials.has(mat)) ownedMaterials.add(mat);
       });
@@ -356,7 +392,12 @@ export class GameScene {
       mesh.position.set((i - 1) * 0.15, 0.5, i * 0.08); flame.add(mesh);
     }
     const light = new THREE.PointLight('#ff9d4d', 35, 14, 1.7); light.position.set(x, 2, z); this.environment.add(light);
-    this.fires.push({ flame, light, phase: x + z });
+    const smoke = [], texture = radialTexture(true);
+    for (let i = 0; i < 4; i++) {
+      const puff = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, opacity: .23, depthWrite: false, color: '#7a7f86' }));
+      this.environment.add(puff); smoke.push(puff);
+    }
+    this.fires.push({ flame, light, smoke, x, z, phase: x + z });
   }
 
   batchWorld() {
@@ -389,6 +430,10 @@ export class GameScene {
       const side = brickMaterial(o.d, o.h, '#c0bdba'), front = brickMaterial(o.w, o.h, '#c0bdba');
       this.wallMaterials.push(side, front);
       box(group, o.w, o.h, o.d, 0, o.h / 2, 0, [side, side, material('#494d58'), material('#494d58'), front, front]);
+      for (const x of [-o.w / 3, o.w / 3]) {
+        const board = box(group, 2.1, .18, .1, x, 1.7, o.d / 2 + .31, cloth('#625949')); board.rotation.z = -.42;
+        for (let j = 0; j < 3; j++) box(group, .045, .6 + j * .3, .025, x - .5 + j * .37, .4, o.d / 2 + .02, '#353936', false);
+      }
       for (const x of [-o.w / 2 + .2, o.w / 2 - .2]) { cylinder(group, .07, o.h + .4, x, o.h / 2, o.d / 2 + .25, '#625b4a'); }
       const neon = material('#b6c1af', { emissive: '#b6c1af', emissiveIntensity: 1.5 }); this.neons.push(neon);
       box(group, o.w - 1, .06, .08, 0, 3.98, o.d / 2 + .14, neon, false);
@@ -418,7 +463,17 @@ export class GameScene {
       box(group, o.w - 0.2, 0.65, 2.2, 0, 1.24, -0.2, o.color);
       box(group, o.w - 0.38, 0.43, 0.08, 0, 1.25, 0.95, '#3b5558');
       box(group, o.w - 0.38, 0.43, 0.08, 0, 1.25, -1.35, '#3b5558');
-      for (const x of [-o.w / 2, o.w / 2]) for (const z of [-1.3, 1.3]) box(group, 0.25, 0.62, 0.65, x, 0.4, z, '#273230');
+      for (const x of [-o.w / 2, o.w / 2]) for (const z of [-1.3, 1.3]) {
+        const wheel = cylinder(group, .34, .28, x, .36, z, '#1d2424', 16); wheel.rotation.z = Math.PI / 2;
+        const rim = cylinder(group, .17, .3, x, .36, z, '#696e6c', 12); rim.rotation.z = Math.PI / 2;
+      }
+      for (const z of [-o.d / 2, o.d / 2]) box(group, o.w + .05, .15, .13, 0, .45, z, '#626966');
+      for (const side of [-1, 1]) {
+        box(group, .035, .035, 1.9, side * (o.w / 2 + .01), .78, .3, '#b0a68c');
+        box(group, .035, .17, .6, side * (o.w / 2 + .02), .55, -.5, '#5a4436');
+      }
+      const hood = box(group, o.w - .1, .07, 1.5, 0, 1.04, o.d / 2 - .7, cloth('#4f5855')); hood.rotation.x = -.14;
+      box(group, .045, .52, .015, .25, 1.26, .998, '#9ba7a4').rotation.z = .55;
       for (const x of [-0.75, 0.75]) box(group, 0.4, 0.2, 0.07, x, 0.8, o.d / 2 + 0.05, '#decda0');
     } else {
       box(group, o.w, o.h, o.d, 0, o.h / 2, 0, o.color);
@@ -468,8 +523,9 @@ export class GameScene {
       return;
     }
     if (actor.disposable) actor.group.traverse(mesh => { if (mesh.isMesh) { mesh.geometry.dispose(); mesh.material.dispose(); } });
-    if (!actor.disposable) actor.group.traverse(mesh => { if (mesh.isMesh && mesh.geometry !== boxGeometry && mesh !== actor.ring) mesh.geometry.dispose(); });
+    if (!actor.disposable) actor.group.traverse(mesh => { if (mesh.isMesh && mesh.geometry !== boxGeometry && mesh.geometry !== roundedGeometry && mesh !== actor.ring) mesh.geometry.dispose(); });
     if (actor.ring) { actor.ring.geometry.dispose(); actor.ring.material.dispose(); }
+    actor.contact?.material.dispose();
     if (actor.label) { actor.label.material.map.dispose(); actor.label.material.dispose(); }
   }
 
@@ -551,6 +607,7 @@ export class GameScene {
     const flash = new THREE.Mesh(new THREE.IcosahedronGeometry(0.17, 0), new THREE.MeshBasicMaterial({ color: '#fff2b6' }));
     const direction = new THREE.Vector3(event.endX - event.x, 0, event.endZ - event.z).normalize();
     if (muzzle) flash.position.copy(source); else flash.position.set(event.x + direction.x * 1.25, 1.04, event.z + direction.z * 1.25);
+    this.muzzleLight.position.copy(flash.position); this.muzzleLight.intensity = 12; this.flashTime = .055;
     this.scene.add(flash); this.effects.push({ object: flash, ttl: 0.055, max: 0.055 });
   }
 
@@ -590,6 +647,7 @@ export class GameScene {
   render(dt, inputAim) {
     if (this.inspectionOpen && !this.id) return;
     this.time += dt;
+    this.flashTime = Math.max(0, this.flashTime - dt); this.muzzleLight.intensity = this.flashTime > 0 ? 12 : 0;
     const particles = this.weather.geometry.attributes.position;
     for (let i = 0; i < particles.count; i++) {
       let y = particles.getY(i) + dt * (this.district === 'foundry' ? .65 : -5);
@@ -654,6 +712,11 @@ export class GameScene {
       const flicker = Math.sin(this.time * 17 + fire.phase) * 0.12 + Math.sin(this.time * 29) * 0.06;
       fire.flame.scale.set(1 - flicker * 0.3, 1 + flicker, 1 - flicker * 0.3);
       fire.light.intensity = 35 + flicker * 35;
+      fire.smoke.forEach((puff, i) => {
+        const age = (this.time * .22 + i / 4) % 1;
+        puff.position.set(fire.x + age * 1.2, 1.8 + age * 5, fire.z + Math.sin(age * 3 + fire.phase) * .3);
+        puff.scale.setScalar(.9 + age * 3); puff.material.opacity = Math.sin(age * Math.PI) * .22;
+      });
     }
     for (let i = this.effects.length - 1; i >= 0; i--) {
       const effect = this.effects[i]; effect.ttl -= dt;
