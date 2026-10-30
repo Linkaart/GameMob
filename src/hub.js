@@ -22,7 +22,7 @@ export class Hub {
     landing.innerHTML = `<header class="hub-header"><a class="hub-logo" href="/" aria-label="Deadblock, accueil"><span>D</span>DEADBLOCK<small>LE REFUGE</small></a><div class="hub-account"><span class="hub-rank">SURVIVANT <b id="rank-value">01</b></span><strong class="hub-wallet"><i>◈</i><span id="wallet-value">—</span><small>CRÉDITS</small></strong><div id="hub-connection"></div></div></header>
       <div class="hub-layout"><nav class="hub-nav" aria-label="Navigation du refuge">${tabs.map(([id, n, name]) => `<button type="button" data-tab="${id}" ${id === 'home' ? 'aria-current="page"' : ''}><span>${n}</span>${name}<i>›</i></button>`).join('')}<div class="nav-foot"><span class="live-dot"></span> REFUGE OPÉRATIONNEL<small>SECTEUR 07 / DERNIER SIGNAL</small></div></nav>
       <main class="hub-main"><div id="hub-message" role="status" aria-live="polite"></div><div id="hub-loading">Connexion au refuge…</div><div id="hub-content"></div><div id="deployment-dock"></div></main></div>
-      <footer class="hub-footer"><span>NE SURVIVEZ PAS SEUL.</span><span>COOPÉRATION 1–4 JOUEURS <i>•</i> PC & MOBILE</span><span>DEADBLOCK / 0.6</span></footer>`;
+      <footer class="hub-footer"><span>NE SURVIVEZ PAS SEUL.</span><span>COOPÉRATION 1–4 JOUEURS <i>•</i> PC & MOBILE</span><span>DEADBLOCK / 0.7</span></footer>`;
     document.querySelector('#hub-connection').append(status, sound);
     document.querySelector('#deployment-dock').append(form);
     form.querySelector('.form-top .eyebrow').textContent = 'PRÊT POUR UNE SORTIE ?';

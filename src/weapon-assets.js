@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { surface, reflectionTexture } from './surface-materials.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
@@ -34,10 +35,10 @@ export function createImportedWeapon(id) {
   body.traverse(mesh => {
     if (!mesh.isMesh) return;
     mesh.geometry = mesh.geometry.clone(); mesh.material = mesh.material.clone();
-    mesh.material.color.set(finishes[id]); mesh.material.roughness = .62; mesh.material.metalness = .35;
+    mesh.material.color.set(finishes[id]); mesh.material.roughness = .4; mesh.material.metalness = .65; mesh.material.envMap = reflectionTexture(); mesh.material.envMapIntensity = .65;
     mesh.castShadow = mesh.receiveShadow = true;
   });
-  const mat = (color, luminous = false) => new THREE.MeshStandardMaterial({ color, roughness: .55, metalness: .6, ...(luminous ? { emissive: color, emissiveIntensity: .85 } : {}) });
+  const mat = (color, luminous = false) => new THREE.MeshStandardMaterial({ color, envMap: reflectionTexture(), envMapIntensity: .65, roughness: luminous ? .3 : .48, metalness: luminous ? .25 : .7, ...(luminous ? { emissive: color, emissiveIntensity: .85 } : { map: surface('metal') }) });
   function part(geometry, x, y, z, color = '#343c3f', rotation = [0, 0, 0], luminous = false) {
     const mesh = new THREE.Mesh(geometry, mat(color, luminous)); mesh.position.set(x, y, z); mesh.rotation.set(...rotation);
     mesh.castShadow = mesh.receiveShadow = true; root.add(mesh); return mesh;

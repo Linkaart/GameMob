@@ -1,4 +1,4 @@
-export const GAME_VERSION = '0.6.0';
+export const GAME_VERSION = '0.7.0';
 
 export const MATERIALS = {
   scrap: { name: 'Ferraille', short: 'FER', color: '#c5b99a' },

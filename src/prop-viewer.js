@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { reflectionTexture } from './surface-materials.js';
 import { createWeaponModel, createCrateModel, createGrenadeModel, disposeProp, CRATES, WEAPON_FINISHES } from './props.js';
 import { createBossModel, disposeBossModel, BOSS_DESIGNS } from './boss-models.js';
 import { weaponFor, BOSSES } from '../shared/content.mjs';
@@ -9,6 +10,7 @@ export function refreshWeaponThumbnails() { for (const key of thumbnails.keys())
 let studio;
 function makeModel(kind, id) { return kind === 'boss' ? createBossModel(id) : kind === 'crate' ? createCrateModel(id) : kind === 'supply' ? createGrenadeModel() : createWeaponModel(id); }
 function lightScene(scene) {
+  scene.environment = reflectionTexture(); scene.environmentIntensity = .7;
   scene.add(new THREE.HemisphereLight('#e1e8e4', '#40484c', 2.7));
   const key = new THREE.DirectionalLight('#fff1d8', 3.5); key.position.set(-2, 4, 5); scene.add(key);
   const rim = new THREE.DirectionalLight('#91b4cb', 2.8); rim.position.set(2, 1, -3); scene.add(rim);

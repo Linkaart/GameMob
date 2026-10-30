@@ -1,7 +1,7 @@
 import { loadWeaponAssets } from './weapon-assets.js';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { surface, radialTexture } from './surface-materials.js';
+import { surface, radialTexture, reflectionTexture, glowTexture } from './surface-materials.js';
 import { DISTRICTS, BOSSES, ENEMIES, weaponFor } from '../shared/content.mjs';
 import { ARENA_SIZE, OBSTACLES, PLAYER_COLORS, worldFor } from '../shared/world.mjs';
 import { createWeaponModel, createCrateModel, disposeProp } from './props.js';
@@ -20,8 +20,25 @@ function cloth(color) {
 function bodyBox(parent, ...args) {
   const mesh = box(parent, ...args); mesh.geometry = roundedGeometry; return mesh;
 }
+function batchBody(rig) {
+  // Only rigid, direct children: legs, weapons and their animation remain independent.
+  const groups = new Map();
+  for (const mesh of rig.children) {
+    if (!mesh.isMesh || Array.isArray(mesh.material)) continue;
+    const key = `${mesh.geometry.uuid}/${mesh.material.uuid}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(mesh);
+  }
+  for (const meshes of groups.values()) {
+    if (meshes.length < 2) continue;
+    const batch = new THREE.InstancedMesh(meshes[0].geometry, meshes[0].material, meshes.length);
+    batch.castShadow = batch.receiveShadow = true;
+    meshes.forEach((mesh, index) => { mesh.updateMatrix(); batch.setMatrixAt(index, mesh.matrix); mesh.removeFromParent(); });
+    batch.instanceMatrix.needsUpdate = true; batch.computeBoundingSphere(); rig.add(batch);
+  }
+}
 function material(color, extra = {}) {
-  if (extra.map) return new THREE.MeshStandardMaterial({ color, roughness: 0.88, ...extra });
+  if (extra.map || extra.envMap) return new THREE.MeshStandardMaterial({ color, roughness: 0.88, ...extra });
   const key = color + JSON.stringify(extra);
   if (!materials.has(key)) materials.set(key, new THREE.MeshStandardMaterial({ color, roughness: 0.88, ...extra }));
   return materials.get(key);
@@ -106,7 +123,7 @@ function bossCharacter(kind) {
     if (actor.disposed) return;
     const model = createBossModel(kind); if (!model) return;
     fallback.group.removeFromParent();
-    fallback.group.traverse(mesh => { if (mesh.isMesh && mesh.geometry !== boxGeometry && mesh.geometry !== roundedGeometry) mesh.geometry.dispose(); });
+    fallback.group.traverse(mesh => { if (mesh.isInstancedMesh) mesh.dispose(); if (mesh.isMesh && mesh.geometry !== boxGeometry && mesh.geometry !== roundedGeometry) mesh.geometry.dispose(); });
     fallback.ring.material.dispose(); fallback.contact?.material.dispose(); actor.fallback = null;
     rig.add(model); actor.model = model;
   };
@@ -202,6 +219,7 @@ function character(color, zombie = false, kind = 'walker', weapon = 'carbine', f
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.035; group.add(ring);
   const contact = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), material('#ffffff', { map: contactTexture, transparent: true, depthWrite: false, roughness: 1 }));
   contact.rotation.x = -Math.PI / 2; contact.position.y = .025; group.add(contact);
+  batchBody(rig);
   const actor = { group, rig, legs, ring, contact, weaponModel, kick: 0, phase: Math.random() * 6.28, target: null, disposed: false };
   if (!zombie) loadWeaponAssets().then(() => {
     if (actor.disposed || actor.weaponModel.userData.importedWeapon) return;
@@ -218,6 +236,7 @@ export class GameScene {
     this.scene.fog = new THREE.Fog('#101725', 24, 68);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    this.resolutionScale = 1; this.frameWindow = 0; this.frameCount = 0; this.fastWindows = 0;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -239,6 +258,8 @@ export class GameScene {
     sun.shadow.mapSize.set(2048, 2048);
     Object.assign(sun.shadow.camera, { left: -35, right: 35, top: 35, bottom: -35, far: 100 });
     sun.shadow.normalBias = 0.025; sun.shadow.bias = -0.0002; this.scene.add(sun);
+    this.torch = new THREE.SpotLight('#e5ead6', 24, 16, .45, .65, 1.6);
+    this.torch.intensity = 0; this.scene.add(this.torch, this.torch.target);
     this.muzzleLight = new THREE.PointLight('#ffcb87', 0, 7, 2); this.scene.add(this.muzzleLight); this.flashTime = 0;
     this.world = worldFor('quarantine'); this.environment = new THREE.Group(); this.scene.add(this.environment); this.objectiveMarkers = new Map();
     this.buildWorld(); this.buildAtmosphere(); this.batchWorld(); this.buildAttractScene(); this.configureDistrict('quarantine');
@@ -259,6 +280,29 @@ export class GameScene {
     this.followCamera.updateProjectionMatrix();
   }
 
+  adaptResolution(frameSeconds) {
+    // Keep input/HUD responsive on weaker GPUs; DOM text always stays at native resolution.
+    if (!this.id || document.hidden || frameSeconds <= 0 || frameSeconds > 1) {
+      this.frameWindow = 0; this.frameCount = 0; return;
+    }
+    this.frameWindow += frameSeconds; this.frameCount++;
+    if (this.frameWindow < 1.2 || this.frameCount < 6) return;
+    const average = this.frameWindow / this.frameCount;
+    this.frameWindow = 0; this.frameCount = 0;
+    let scale = this.resolutionScale;
+    if (average > .036) { scale = Math.max(.55, scale - .15); this.fastWindows = 0; }
+    else if (average < .019) { if (++this.fastWindows >= 4) { scale = Math.min(1, scale + .1); this.fastWindows = 0; } }
+    else this.fastWindows = 0;
+    if (Math.abs(scale - this.resolutionScale) < .001) return;
+    this.resolutionScale = scale;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75) * scale);
+    const shadowSize = scale < .8 ? 1024 : 2048;
+    if (this.sun.shadow.mapSize.x !== shadowSize) {
+      this.sun.shadow.mapSize.set(shadowSize, shadowSize);
+      this.sun.shadow.map?.dispose(); this.sun.shadow.map = null;
+    }
+  }
+
   buildWorld() {
     const edge = this.world.size / 2;
     const asphalt = surface('asphalt').clone(); asphalt.needsUpdate = true;
@@ -275,10 +319,13 @@ export class GameScene {
     for (const z of [-7.5, 7.5]) for (let x = -4.8; x < 5; x += 1.15)
       box(this.environment, 0.65, 0.016, 1.5, x, 0.06, z, '#7c8289', false);
     for (const obstacle of this.world.obstacles) this.buildObstacle(obstacle);
+    const lampGlow = glowTexture();
     for (const x of [-6, 6]) for (const z of [-18, 18]) {
       cylinder(this.environment, 0.13, 4.5, x, 2.25, z, '#33423c');
       box(this.environment, 0.15, 0.15, 1.2, x, 4.5, z + 0.5, '#33423c');
       box(this.environment, 0.5, 0.15, 0.7, x, 4.42, z + 1, material('#ffe3a6', { emissive: '#e3b963', emissiveIntensity: 0.8 }));
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: lampGlow, color: '#ffcf8a', opacity: .4, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+      glow.position.set(x, 4.36, z + 1); glow.scale.setScalar(1.4); this.environment.add(glow);
       const light = new THREE.PointLight('#ffc582', 22, 12, 1.8);
       light.position.set(x, 4.15, z + 1); this.environment.add(light);
     }
@@ -325,7 +372,7 @@ export class GameScene {
 
   buildAtmosphere() {
     // Reflective wet patches and road scarring use shared geometry and remain inexpensive.
-    const puddle = material('#34444b', { metalness: .65, roughness: .12, transparent: true, opacity: .6 });
+    const puddle = material('#34444b', { metalness: .65, roughness: .12, envMap: reflectionTexture(), envMapIntensity: .6, transparent: true, opacity: .6 });
     for (let i = 0; i < 18; i++) {
       const x = Math.sin(i * 7.3) * 19, z = Math.cos(i * 4.7) * 19;
       const wet = new THREE.Mesh(new THREE.CircleGeometry(1, 11), puddle); wet.rotation.x = -Math.PI / 2; wet.rotation.z = i * 1.7; wet.scale.set(1.2 + i % 3, .6 + i % 2, 1); wet.position.set(x, .025, z); this.environment.add(wet);
@@ -387,10 +434,13 @@ export class GameScene {
   buildFire(x, z) {
     cylinder(this.environment, 0.5, 1.15, x, 0.57, z, '#4a3a32');
     const flame = new THREE.Group(); flame.position.set(x, 1.2, z); this.environment.add(flame);
+    const flameMap = glowTexture(true), glowMap = glowTexture();
     for (let i = 0; i < 3; i++) {
-      const mesh = new THREE.Mesh(new THREE.ConeGeometry(0.32 - i * 0.07, 1.3 - i * 0.2, 5), new THREE.MeshBasicMaterial({ color: ['#df6c29', '#f6a249', '#ffe0a0'][i] }));
-      mesh.position.set((i - 1) * 0.15, 0.5, i * 0.08); flame.add(mesh);
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameMap, transparent: true, opacity: .85, depthWrite: false, color: i === 1 ? '#fff5c3' : '#ffac63' }));
+      sprite.position.set((i - 1) * .17, .45 + i * .1, i * .09); sprite.scale.set(.65 - i * .07, 1.5 - i * .17, 1); flame.add(sprite);
     }
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, color: '#ff8e35', transparent: true, opacity: .26, blending: THREE.AdditiveBlending, depthWrite: false }));
+    halo.position.y = .4; halo.scale.set(2.2, 2.6, 1); flame.add(halo);
     const light = new THREE.PointLight('#ff9d4d', 35, 14, 1.7); light.position.set(x, 2, z); this.environment.add(light);
     const smoke = [], texture = radialTexture(true);
     for (let i = 0; i < 4; i++) {
@@ -497,6 +547,7 @@ export class GameScene {
 
   setPlayer(id) {
     this.id = id;
+    if (!id) this.torch.intensity = 0;
     this.camera = id ? this.followCamera : this.lobbyCamera;
     this.cameraYaw = 0;
     this.cameraReady = false;
@@ -513,6 +564,7 @@ export class GameScene {
 
   removeActor(actor) {
     actor.disposed = true;
+    actor.group.traverse(mesh => { if (mesh.isInstancedMesh) mesh.dispose(); });
     if (actor.weaponModel) { disposeProp(actor.weaponModel); actor.weaponModel = null; }
     this.scene.remove(actor.group);
     if (actor.boss) {
@@ -646,6 +698,11 @@ export class GameScene {
 
   render(dt, inputAim) {
     if (this.inspectionOpen && !this.id) return;
+    if (!this.id) {
+      this.lobbyElapsed = (this.lobbyElapsed || 0) + dt;
+      if (this.lobbyElapsed < 1 / 20) return;
+      dt = this.lobbyElapsed; this.lobbyElapsed = 0;
+    }
     this.time += dt;
     this.flashTime = Math.max(0, this.flashTime - dt); this.muzzleLight.intensity = this.flashTime > 0 ? 12 : 0;
     const particles = this.weather.geometry.attributes.position;
@@ -686,6 +743,13 @@ export class GameScene {
     }
     for (const actor of this.pickups.values()) { actor.group.rotation.y += dt; actor.group.position.y = 0.1 + Math.sin(this.time * 3) * 0.08; }
     const local = this.players.get(this.id);
+    const torchActive = !!local && local.target.hp > 0;
+    this.torch.intensity = torchActive ? 24 : 0;
+    if (torchActive) {
+      const aim = local.rig.rotation.y;
+      this.torch.position.set(local.group.position.x + Math.sin(aim) * .65, 1.15, local.group.position.z + Math.cos(aim) * .65);
+      this.torch.target.position.set(local.group.position.x + Math.sin(aim) * 12, -.35, local.group.position.z + Math.cos(aim) * 12);
+    }
     const target = local ? local.group.position : new THREE.Vector3(window.innerWidth > 800 ? -7 : 0, 0, 0);
     if (local && !this.cameraReady) { this.focus.copy(target); this.cameraReady = true; }
     this.focus.lerp(target, 1 - Math.exp(-dt * 9));

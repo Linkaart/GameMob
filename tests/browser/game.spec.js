@@ -1,10 +1,12 @@
 import { test, expect } from '@playwright/test';
 
 test('desktop: two players share a room, shoot, reload, and leave', async ({ browser }) => {
-  test.setTimeout(45000);
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  // Two WebGL contexts plus captures need more total time on software rendering.
+  // Keep the individual input, reload and squad assertions at their normal timeout.
+  test.setTimeout(75000);
+  const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   const first = await context.newPage();
-  const secondContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const secondContext = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   const second = await secondContext.newPage();
   const errors = [];
   for (const page of [first, second]) page.on('pageerror', error => errors.push(error.message));
@@ -25,7 +27,7 @@ test('desktop: two players share a room, shoot, reload, and leave', async ({ bro
   await expect(second.locator('#squad-count')).toHaveText('2/4');
   await expect(first.locator('#squad-list')).toContainText('Bob');
   await first.bringToFront();
-  await first.mouse.move(900, 430); await first.mouse.down();
+  await first.mouse.move(800, 360); await first.mouse.down();
   await expect(first.locator('#ammo-value')).not.toHaveText('24');
   await expect(first.locator('.magazine i.spent').first()).toBeAttached();
   await first.mouse.up(); await first.keyboard.press('KeyR');

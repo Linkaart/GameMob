@@ -215,12 +215,16 @@ function banner(title, subtitle) {
   $('#wave-banner').classList.add('show'); bannerTimer = setTimeout(() => $('#wave-banner').classList.remove('show'), 2400);
 }
 function action(name) {
-  if (socket?.readyState === WebSocket.OPEN && playerId) socket.send(JSON.stringify({ type: 'action', action: name }));
+  if (socket?.readyState === WebSocket.OPEN && playerId) {
+    sendInput();
+    socket.send(JSON.stringify({ type: 'action', action: name }));
+  }
 }
 function resetControls() {
   keys.clear(); mouse.fire = false; orbitPointer = null;
   Object.assign(touch, { x: 0, y: 0, aimX: 0, aimY: 0, fire: false, interact: false });
   document.querySelectorAll('.knob').forEach(el => { el.style.transform = ''; });
+  sendInput();
 }
 
 function quit() {
@@ -458,6 +462,7 @@ $('#scene').addEventListener('pointerdown', event => {
 window.addEventListener('pointerup', event => {
   if (event.pointerType === 'mouse' && event.button === 0) mouse.fire = false;
   if (event.pointerId === orbitPointer) orbitPointer = null;
+  sendInput();
 });
 $('#scene').addEventListener('lostpointercapture', event => { if (event.pointerId === orbitPointer) orbitPointer = null; });
 window.addEventListener('pointercancel', resetControls);
@@ -483,6 +488,7 @@ function joystick(selector, aiming) {
   const release = event => {
     if (event.pointerId !== pointer) return; pointer = null; knob.style.transform = '';
     if (aiming) { touch.fire = false; touch.aimX = 0; touch.aimY = 0; } else { touch.x = 0; touch.y = 0; }
+    sendInput();
   };
   element.addEventListener('pointerup', release); element.addEventListener('pointercancel', release); element.addEventListener('lostpointercapture', release);
 }
@@ -492,16 +498,21 @@ $('#touch-revive').addEventListener('pointerdown', event => {
 });
 for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) $('#touch-revive').addEventListener(event, () => { touch.interact = false; });
 
+function sendInput() {
+  if (playerId && socket?.readyState === WebSocket.OPEN && socket.bufferedAmount < 16 * 1024)
+    socket.send(JSON.stringify({ type: 'input', ...getInput() }));
+}
+
 setInterval(() => {
   if (!playerId || socket?.readyState !== WebSocket.OPEN) return;
   if (performance.now() - lastStateAt > 8000) { socket.close(); return; }
-  if (socket.bufferedAmount < 16 * 1024) socket.send(JSON.stringify({ type: 'input', ...getInput() }));
+  sendInput();
 }, 50);
 
 let previous = performance.now();
 function animate(now) {
-  const dt = Math.min((now - previous) / 1000, 0.05); previous = now;
-  if (scene) { getInput(); scene.render(dt, aim); }
+  const elapsed = (now - previous) / 1000; previous = now;
+  if (scene) { scene.adaptResolution(elapsed); getInput(); scene.render(Math.min(elapsed, .05), aim); }
   requestAnimationFrame(animate);
 }
 requestAnimationFrame(animate);
