@@ -1,6 +1,6 @@
 # GameMob · DEADBLOCK
 
-Jeu de survie coopérative en 3D dans le navigateur, pour 1 à 4 joueurs. Un refuge pour préparer ses sorties, une ville infestée, trois boss à chasser et des armes spéciales à fabriquer avec leur butin. Univers, décor procédural et sons originaux ; armes adaptées de bases Kenney CC0 et boss de modèles Quaternius CC0. Aucun asset de Call of Mini: Zombies n’est utilisé.
+Jeu de survie coopérative en 3D dans le navigateur, pour 1 à 4 joueurs. Un refuge pour préparer ses sorties, une ville infestée, trois boss à chasser et des armes spéciales à fabriquer avec leur butin. Univers, décors procéduraux et sons originaux ; véhicules, campement et bases d’armes Kenney CC0 et boss de modèles Quaternius CC0. Aucun asset de Call of Mini: Zombies n’est utilisé.
 
 ## Démarrer
 
@@ -140,6 +140,8 @@ La version **0.8** ajoute des nombres de dégâts et des confirmations de touche
 
 Le bouton **Réglages graphiques** du refuge et du briefing en partie propose **Automatique**, **Fluidité** et **Qualité**. Le choix est mémorisé dans le navigateur ; le texte de l’interface reste net. Le mode Fluidité utilise 65 % de la résolution initiale et des ombres à 1024 pixels ; Qualité conserve la résolution initiale et des ombres à 2048 pixels. Automatique conserve l’ajustement dynamique de la version précédente. En coopération, la partie continue pendant que les réglages sont ouverts ; les commandes de déplacement/tir sont neutralisées tant que la fenêtre est affichée.
 
+La version **0.9** intègre les modèles du dépôt officiel [Kenney / Starter Kit Racing](https://github.com/KenneyNL/Starter-Kit-Racing), sous CC0 : un pick-up en deux couleurs, une moto et un campement. Les pick-up remplacent les voitures des trois cartes ; leur hauteur partagée avec la caméra passe à 2,2 m, avec les mêmes emplacements et emprises au sol. Motos et tentes habillent les abords hors du périmètre jouable. Les teintes sont atténuées pour s’intégrer aux rues nocturnes. Modèles et texture sont locaux, avec sources, révision et empreintes dans [les crédits du décor](public/assets/environment/CREDITS.txt). Les voitures procédurales restent disponibles si un modèle ne peut pas être chargé. Les changements de carte libèrent les ressources propres aux instances sans invalider les modèles sources en cache.
+
 Trois cartes distinctes : **Quarantaine**, **La Fonderie**, **Zone Zéro**. Tailles, bâtiments, routes et collisions sont définis dans `shared/world.mjs` et partagés entre serveur, rendu et mini-carte. Chaque carte possède aussi son ciel, sa brume, son éclairage, ses enseignes et ses particules (pluie ou cendres). Les boss, ennemis et armes disposent de détails visuels distincts. Néons vacillants, feux, flaques réfléchissantes, ruines industrielles, textures de briques et visages sont générés dans le projet. Les éléments statiques sont regroupés en instances pour réduire le coût du rendu.
 
 Source demandée pour une prochaine reprise des images/statistiques : [Call of Mini Zombies Wiki — Weapons](https://callofminizombies.fandom.com/wiki/Weapons). L’accès à Fandom a été refusé par le proxy réseau de l’environnement le 27 octobre 2026 (403 avant connexion au site). Les autorisations de domaine ont été préparées en brouillon. **Aucune image ni statistique de ce wiki n’a encore été importée** ; les valeurs de `shared/content.mjs` restent celles du prototype et ne sont pas présentées comme les valeurs officielles.
@@ -171,6 +173,7 @@ Les tests couvrent déplacements/collisions/caméra, tirs/recharge/réanimation,
 - `server/navigation.mjs`, `shared/world.mjs` : navigation et collisions.
 - `src/hub.js`, `src/hub.css` : refuge, boutique, atelier, arsenal et contrats.
 - `src/scene.js`, `src/camera.js` : rendu Three.js et caméra.
+- `src/environment-assets.js`, `public/assets/environment/` : véhicules et campement Kenney, textures et provenance.
 - `src/weapon-assets.js`, `public/assets/weapons/` : bases Kenney, texture locale et douze adaptations.
 - `src/mission-hud.js`, `src/campaign.css` : objectifs, mini-carte et sélection de campagne.
 - `src/boss-models.js`, `public/assets/bosses/` : modèles téléchargés, provenance, équipements ajoutés et animations des boss.

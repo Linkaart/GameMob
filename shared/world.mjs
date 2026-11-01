@@ -9,8 +9,8 @@ export const OBSTACLES = [
   { x: 12, z: -13, w: 9, d: 7, h: 6.4, type: 'shop', color: '#6f727c', label: 'PHARMACY' },
   { x: -14, z: 12, w: 8, d: 7, h: 4.8, type: 'shop', color: '#997461', label: 'GARAGE' },
   { x: 13, z: 12, w: 10, d: 8, h: 5.6, type: 'shop', color: '#687a70', label: 'STORAGE' },
-  { x: -8, z: 1, w: 2.4, d: 4.5, h: 1.3, type: 'car', color: '#b66a4e' },
-  { x: 7.5, z: -2, w: 2.4, d: 4.5, h: 1.3, type: 'car', color: '#728ca1' },
+  { x: -8, z: 1, w: 2.4, d: 4.5, h: 2.2, type: 'car', color: '#b66a4e' },
+  { x: 7.5, z: -2, w: 2.4, d: 4.5, h: 2.2, type: 'car', color: '#728ca1' },
   { x: 1.5, z: 13, w: 3, d: 1.2, h: 0.8, type: 'barrier', color: '#c4b27a' },
   { x: -2, z: -14, w: 3, d: 1.2, h: 0.8, type: 'barrier', color: '#c4b27a' },
 ];
@@ -22,7 +22,7 @@ export const WORLDS = {
     warehouse(-13, -14, 13, 8, 5.8, '#886551'), warehouse(14, -13, 10, 10, 7, '#7a655b'),
     warehouse(-14, 14, 10, 12, 5, '#8c7461'), warehouse(13, 15, 13, 8, 6, '#79716a'),
     warehouse(-25, -25, 8, 8, 4.5, '#726152'), warehouse(25, 25, 8, 8, 4.5, '#726152'),
-    { x: -8, z: 2, w: 3, d: 6, h: 1.3, type: 'car', color: '#b98554' },
+    { x: -8, z: 2, w: 3, d: 6, h: 2.2, type: 'car', color: '#b98554' },
     { x: 9, z: -2, w: 5, d: 1.2, h: .9, type: 'barrier', color: '#b9a57a' },
   ], stations: [{ x: -25, z: 0 }, { x: 25, z: 0 }, { x: 0, z: 24 }, { x: 0, z: -24 }] },
   laboratory: { size: 72, obstacles: [
@@ -30,8 +30,8 @@ export const WORLDS = {
     warehouse(-14, 15, 17, 8, 5.5, '#819287'), warehouse(15, 15, 17, 8, 5.5, '#819287'),
     warehouse(-29, -26, 8, 10, 6, '#667f77'), warehouse(29, -26, 8, 10, 6, '#667f77'),
     warehouse(-29, 28, 8, 8, 6, '#667f77'), warehouse(29, 28, 8, 8, 6, '#667f77'),
-    { x: -7, z: 0, w: 2, d: 5, h: 1.3, type: 'car', color: '#a8b5a8' },
-    { x: 7, z: 0, w: 2, d: 5, h: 1.3, type: 'car', color: '#a8b5a8' },
+    { x: -7, z: 0, w: 2, d: 5, h: 2.2, type: 'car', color: '#a8b5a8' },
+    { x: 7, z: 0, w: 2, d: 5, h: 2.2, type: 'car', color: '#a8b5a8' },
   ], stations: [{ x: -28, z: 0 }, { x: 28, z: 0 }, { x: 0, z: -27 }, { x: 0, z: 27 }] },
 };
 export const worldFor = id => WORLDS[id] || WORLDS.quarantine;

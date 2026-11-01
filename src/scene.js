@@ -1,3 +1,4 @@
+import { loadEnvironmentAssets, createEnvironmentAsset } from './environment-assets.js';
 import { loadWeaponAssets } from './weapon-assets.js';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -267,8 +268,9 @@ export class GameScene {
     this.torch = new THREE.SpotLight('#e5ead6', 24, 16, .45, .65, 1.6);
     this.torch.intensity = 0; this.scene.add(this.torch, this.torch.target);
     this.muzzleLight = new THREE.PointLight('#ffcb87', 0, 7, 2); this.scene.add(this.muzzleLight); this.flashTime = 0;
-    this.world = worldFor('quarantine'); this.environment = new THREE.Group(); this.scene.add(this.environment); this.objectiveMarkers = new Map();
-    this.buildWorld(); this.buildAtmosphere(); this.batchWorld(); this.buildAttractScene(); this.configureDistrict('quarantine');
+    this.world = worldFor('quarantine'); this.environment = new THREE.Group(); this.scene.add(this.environment); this.worldAssets = new THREE.Group(); this.scene.add(this.worldAssets); this.objectiveMarkers = new Map();
+    this.buildWorld(); this.buildAtmosphere(); this.batchWorld(); this.buildImportedDecor(); this.buildAttractScene(); this.configureDistrict('quarantine');
+    loadEnvironmentAssets().then(() => this.installWorldAssets());
     this.resize();
     window.addEventListener('resize', () => this.resize());
   }
@@ -426,6 +428,7 @@ export class GameScene {
   configureDistrict(id = 'quarantine') {
     const next = worldFor(id);
     if (next !== this.world) {
+      this.disposeWorldAssets();
       const geometries = new Set(), ownedMaterials = new Set(), sharedMaterials = new Set(materials.values());
       this.environment.traverse(mesh => {
         if (mesh.geometry && mesh.geometry !== boxGeometry && mesh.geometry !== roundedGeometry) geometries.add(mesh.geometry);
@@ -435,7 +438,7 @@ export class GameScene {
       for (const geometry of geometries) geometry.dispose();
       for (const mat of ownedMaterials) { mat.map?.dispose(); mat.dispose(); }
       this.environment.clear(); this.signs = []; this.wallMaterials = []; this.neons = []; this.fires = [];
-      this.world = next; this.buildWorld(); this.buildAtmosphere(); this.batchWorld();
+      this.world = next; this.buildWorld(); this.buildAtmosphere(); this.batchWorld(); this.buildImportedDecor();
     }
     const d = DISTRICTS[id] || DISTRICTS.quarantine; this.district = id;
     this.scene.background.set(d.sky); this.scene.fog.color.set(d.fog);
@@ -492,7 +495,13 @@ export class GameScene {
   }
 
   buildObstacle(o) {
-    const group = new THREE.Group(); group.position.set(o.x, 0, o.z); this.environment.add(group);
+    const group = new THREE.Group(); group.position.set(o.x, 0, o.z);
+    (o.type === 'car' ? this.worldAssets : this.environment).add(group);
+    if (o.type === 'car') {
+      const name = o.x < 0 ? 'vehicle-truck-red' : 'vehicle-truck-green';
+      const asset = createEnvironmentAsset(name, o.w - .08, o.h - .02, o.d - .08, o.x < 0 ? Math.PI : 0);
+      if (asset) { group.add(asset); group.userData.vehicleAssetReady = true; return; }
+    }
     if (o.type === 'shop') {
       box(group, o.w + 0.7, 0.22, o.d + 0.7, 0, 0.11, 0, '#626773');
       const side = brickMaterial(o.d, o.h, '#c0bdba'), front = brickMaterial(o.w, o.h, '#c0bdba');
@@ -549,6 +558,36 @@ export class GameScene {
         const stripe = box(group, 0.28, 0.7, 0.02, x, o.h / 2, o.d / 2 + 0.02, '#4a4c3c'); stripe.rotation.z = -0.4;
       }
     }
+  }
+
+  disposeWorldAssets() {
+    const geometries = new Set(), ownedMaterials = new Set(), textures = new Set(), shared = new Set(materials.values());
+    this.worldAssets.traverse(mesh => {
+      if (mesh.geometry && mesh.geometry !== boxGeometry && mesh.geometry !== roundedGeometry) geometries.add(mesh.geometry);
+      if (mesh.material) for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        if (shared.has(mat)) continue; ownedMaterials.add(mat);
+        for (const value of Object.values(mat)) if (value?.isTexture) textures.add(value);
+      }
+    });
+    for (const g of geometries) g.dispose(); for (const m of ownedMaterials) m.dispose(); for (const t of textures) t.dispose();
+    this.worldAssets.clear();
+  }
+
+  buildImportedDecor() {
+    const edge = this.world.size / 2;
+    const camp = createEnvironmentAsset('decoration-tents', 8, 3.3, 8, Math.PI / 2);
+    if (camp) { camp.position.set(-edge - 6, -.12, 0); this.worldAssets.add(camp); }
+    for (const z of [-2, 3]) {
+      const bike = createEnvironmentAsset('vehicle-motorcycle', 1.15, 1.3, 2.4, z < 0 ? Math.PI : 0);
+      if (bike) { bike.position.set(edge + 1.5, -.12, z); this.worldAssets.add(bike); }
+    }
+    this.renderer.domElement.dataset.vehicleAssets = String(this.worldAssets.children.filter(g => g.userData.vehicleAssetReady).length);
+  }
+
+  installWorldAssets() {
+    this.disposeWorldAssets();
+    for (const o of this.world.obstacles) if (o.type === 'car') this.buildObstacle(o);
+    this.buildImportedDecor();
   }
 
   buildAttractScene() {
