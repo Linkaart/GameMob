@@ -112,3 +112,27 @@ test('rooms are limited to four players and reuse available colors after disconn
   room.removePlayer(player.id);
   assert.equal(room.addPlayer('E').slot, 0);
 });
+
+test('impact feedback reports actual damage after armor, caps lethal damage and ignores dead targets', () => {
+  const {room, player} = fixture(), target = zombie(301, 0, 4);
+  target.kind = 'armored'; target.aim = Math.PI; room.zombies = [target];
+  room.damageEnemy(target, 32, player, true);
+  let impact = room.snapshot().events.find(e => e.type === 'impact');
+  assert.equal(impact.player, player.id); assert.equal(impact.id, target.id);
+  assert.ok(Math.abs(impact.amount - 12.8) < 1e-9); assert.equal(impact.armored, true); assert.equal(impact.fatal, false);
+  target.hp = 5; room.damageEnemy(target, 100, player);
+  impact = room.snapshot().events.find(e => e.type === 'impact');
+  assert.equal(impact.amount, 5); assert.equal(impact.fatal, true);
+  room.damageEnemy(target, 100, player);
+  assert.equal(room.snapshot().events.some(e => e.type === 'impact'), false);
+  assert.equal(player.kills, 1);
+});
+
+test('missed and obstructed shots never announce damage', () => {
+  const {room, player} = fixture(); player.aim = 0;
+  room.zombies = [zombie(302, 4, 4)]; room.shoot(player);
+  assert.equal(room.snapshot().events.some(e => e.type === 'impact'), false);
+  player.x = -12; player.z = -20; player.aim = 0;
+  room.zombies = [zombie(303, -12, -4)]; room.shoot(player);
+  assert.equal(room.snapshot().events.some(e => e.type === 'impact'), false);
+});

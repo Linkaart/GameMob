@@ -140,7 +140,7 @@ function character(color, zombie = false, kind = 'walker', weapon = 'carbine', f
   const shirtColor = zombie ? kind === 'tank' ? '#756379' : kind === 'runner' ? '#a27561' : '#a7ad94' : ['#3d5265', '#684f53', '#776c4b', '#3e625d'][slot];
   const shirt = cloth(shirtColor);
   const hair = ['#714523', '#352d2c', '#a8783b', '#433735'][slot];
-  const legs = []; let weaponModel = null;
+  const legs = [], arms = []; let weaponModel = null;
   for (const side of [-1, 1]) {
     const leg = new THREE.Group(); leg.position.set(side * 0.19, 0.62, 0); rig.add(leg);
     bodyBox(leg, 0.3, 0.48, 0.33, 0, -0.22, 0, cloth(zombie ? '#4c535b' : '#303d58'));
@@ -184,9 +184,15 @@ function character(color, zombie = false, kind = 'walker', weapon = 'carbine', f
     }
   }
   for (const side of [-1, 1]) {
-    bodyBox(rig, 0.25, 0.31, 0.29, side * 0.47, 1.04, 0.05, shirt);
-    bodyBox(rig, 0.25, 0.24, zombie ? 0.56 : 0.39, side * 0.47, 0.94, zombie ? 0.37 : 0.3, skin);
-    if (!zombie) bodyBox(rig, 0.27, 0.08, 0.3, side * 0.47, 1.04, 0.06, color);
+    if (zombie) {
+      const arm = new THREE.Group(); arm.position.set(side * .47, 1.15, .05); rig.add(arm); arms.push(arm);
+      bodyBox(arm, .25, .31, .29, 0, -.11, 0, shirt);
+      bodyBox(arm, .25, .24, .56, 0, -.21, .32, skin);
+    } else {
+      bodyBox(rig, .25, .31, .29, side * .47, 1.04, .05, shirt);
+      bodyBox(rig, .25, .24, .39, side * .47, .94, .3, skin);
+      bodyBox(rig, .27, .08, .3, side * .47, 1.04, .06, color);
+    }
   }
   if (zombie && (kind === 'armored' || kind === 'brute' || kind === 'warden')) {
     const armor = kind === 'warden' ? '#536e7a' : '#6c655c';
@@ -220,7 +226,7 @@ function character(color, zombie = false, kind = 'walker', weapon = 'carbine', f
   const contact = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), material('#ffffff', { map: contactTexture, transparent: true, depthWrite: false, roughness: 1 }));
   contact.rotation.x = -Math.PI / 2; contact.position.y = .025; group.add(contact);
   batchBody(rig);
-  const actor = { group, rig, legs, ring, contact, weaponModel, kick: 0, phase: Math.random() * 6.28, target: null, disposed: false };
+  const actor = { group, rig, legs, arms, ring, contact, weaponModel, kick: 0, phase: Math.random() * 6.28, target: null, disposed: false };
   if (!zombie) loadWeaponAssets().then(() => {
     if (actor.disposed || actor.weaponModel.userData.importedWeapon) return;
     const replacement = createWeaponModel(weapon); replacement.position.copy(actor.weaponModel.position); replacement.rotation.copy(actor.weaponModel.rotation); replacement.scale.copy(actor.weaponModel.scale);
@@ -282,7 +288,7 @@ export class GameScene {
 
   adaptResolution(frameSeconds) {
     // Keep input/HUD responsive on weaker GPUs; DOM text always stays at native resolution.
-    if (!this.id || document.hidden || frameSeconds <= 0 || frameSeconds > 1) {
+    if ((this.graphicsMode && this.graphicsMode !== 'auto') || !this.id || document.hidden || frameSeconds <= 0 || frameSeconds > 1) {
       this.frameWindow = 0; this.frameCount = 0; return;
     }
     this.frameWindow += frameSeconds; this.frameCount++;
@@ -294,7 +300,19 @@ export class GameScene {
     else if (average < .019) { if (++this.fastWindows >= 4) { scale = Math.min(1, scale + .1); this.fastWindows = 0; } }
     else this.fastWindows = 0;
     if (Math.abs(scale - this.resolutionScale) < .001) return;
+    this.setResolutionScale(scale);
+  }
+
+  setGraphicsMode(mode) {
+    this.graphicsMode = ['auto','performance','quality'].includes(mode) ? mode : 'auto';
+    this.frameWindow = this.frameCount = this.fastWindows = 0;
+    this.renderer.domElement.dataset.graphics = this.graphicsMode;
+    this.setResolutionScale(this.graphicsMode === 'performance' ? .65 : 1);
+  }
+
+  setResolutionScale(scale) {
     this.resolutionScale = scale;
+    this.renderer.domElement.dataset.resolutionScale = scale.toFixed(2);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75) * scale);
     const shadowSize = scale < .8 ? 1024 : 2048;
     if (this.sun.shadow.mapSize.x !== shadowSize) {
@@ -638,6 +656,7 @@ export class GameScene {
       return { group, fill, inner, disposable: true };
     });
     for (const event of state.events) {
+      if (event.type === 'impact') { const actor = this.zombies.get(event.id); if (actor) actor.hit = 1; }
       if (event.type === 'shot' || event.type === 'arc') { this.shot(event); const actor = this.players.get(event.player); if (actor) actor.kick = 1; }
       if (event.type === 'blast') this.burst(event.x, event.z, event.kind === 'acid' ? '#b9d87b' : event.kind === 'electric' ? '#8fdcea' : '#eab278', 16);
       if (event.type === 'kill') this.burst(event.x, event.z, '#a2ba76', 7);
@@ -731,6 +750,9 @@ export class GameScene {
         actor.weaponModel.position.y = 1.04 - reloading * .15;
         actor.weaponModel.rotation.z = -.22 * reloading + actor.kick * .035;
       }
+      actor.hit = Math.max(0, (actor.hit || 0) - dt * 6);
+      actor.rig.rotation.x = -actor.hit * .12 + (map === this.zombies && target.attacking ? .09 : 0);
+      actor.arms?.forEach((arm, i) => { arm.rotation.x = (moving ? Math.sin(actor.phase + i * Math.PI) * .16 : 0) - (target.attacking ? .4 : 0); });
       actor.model?.userData.animate(dt, { moving, enraged: target.enraged, attacking: target.attacking });
       actor.legs.forEach((leg, i) => { leg.rotation.x = moving ? Math.sin(actor.phase + i * Math.PI) * 0.6 : 0; });
       const aim = id === this.id && Number.isFinite(inputAim) ? inputAim : target.aim;

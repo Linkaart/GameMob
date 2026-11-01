@@ -155,8 +155,11 @@ export class Room {
   }
   damageEnemy(z, amount, p, direct = false) {
     if (z.hp <= 0) return;
-    if (direct && z.kind === 'armored' && Math.cos(Math.atan2(p.x - z.x, p.z - z.z) - z.aim) > .25) amount *= .4;
-    z.hp = Math.max(0, z.hp - amount);
+    const armored = direct && z.kind === 'armored' && Math.cos(Math.atan2(p.x - z.x, p.z - z.z) - z.aim) > .25;
+    if (armored) amount *= .4;
+    const dealt = Math.min(z.hp, Math.max(0, amount));
+    z.hp = Math.max(0, z.hp - dealt);
+    if (dealt > 0) this.events.push({ type: 'impact', id: z.id, player: p.id, x: z.x, z: z.z, amount: dealt, armored, fatal: z.hp <= 0, boss: !!z.boss });
     if (z.hp > 0) return;
     this.teamKills++; p.kills++;
     this.award(p, { credits: z.kind === 'tank' ? 40 : 15, xp: 8, stats: { kills: 1 } });
@@ -397,7 +400,7 @@ export class Room {
       type: 'state', code: this.code, settings: this.settings, wave: this.wave, phase: this.phase, timer: this.timer,
       objective: this.objective, elapsed: this.elapsed, remaining: this.zombies.length + this.toSpawn, teamKills: this.teamKills,
       players: [...this.players.values()].map(({ input, inputAge, cooldown, itemCooldown, profileId, ...p }) => p),
-      zombies: this.zombies.map(({ route, routeAge, speed, attack, ability, burn, ...z }) => ({ ...z, burning: !!burn, ...(z.boss ? { attacking: attack > .5 } : {}) })),
+      zombies: this.zombies.map(({ route, routeAge, speed, attack, ability, burn, ...z }) => ({ ...z, burning: !!burn, attacking: attack > .5 })),
       hazards: this.hazards.map(({ damage, owner, pulse, ...h }) => ({ ...h, friendly: !!owner })),
       pickups: this.pickups, events: this.events.splice(0),
     };

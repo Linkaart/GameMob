@@ -1,3 +1,5 @@
+import { CombatFeedback } from './combat-feedback.js';
+import { GraphicsSettings } from './graphics-settings.js';
 import { MissionHUD } from './mission-hud.js';
 import '@fontsource/barlow-condensed/latin-600.css';
 import '@fontsource/barlow-condensed/latin-700.css';
@@ -153,6 +155,8 @@ catch (error) {
 }
 
 const hub = new Hub(scene);
+const graphics = new GraphicsSettings(scene, () => resetControls());
+const combatFeedback = new CombatFeedback(scene, document.querySelector('#hud'));
 
 const missionHUD = new MissionHUD(document.querySelector('#hud'));
 let socket = null, playerId = null, state = null, lastRoom = '', lastName = '';
@@ -231,7 +235,7 @@ function quit() {
   const local = state?.players.find(p => p.id === playerId);
   if (local) hub.lastRun = { kills: local.kills, bosses: local.bossKills, loot: local.loot, victory: state.phase === 'victory' };
   const previous = socket; socket = null; previous?.close();
-  playerId = null; state = null; resetControls(); scene?.setPlayer(null);
+  playerId = null; state = null; combatFeedback.clear(); resetControls(); scene?.setPlayer(null);
   show('#landing'); show('#hud', false); show('#crosshair', false);
   for (const overlay of ['#help', '#gameover', '#connection-error', '#downed']) show(overlay, false);
   document.body.classList.remove('playing', 'critical-health');
@@ -272,9 +276,10 @@ async function connect(name, code) {
       notify('Escouade déployée. Partagez le code ' + message.code + ' avec vos amis.');
     } else if (message.type === 'profile') { hub.update(message.profile);
     } else if (message.type === 'state' && joined) {
-      state = message; lastStateAt = performance.now(); scene.applyState(state); updateHUD();
+      state = message; lastStateAt = performance.now(); scene.applyState(state); combatFeedback.update(state, playerId); updateHUD();
       for (const e of state.events) {
         sound.event(e);
+        if (e.type === 'restart') combatFeedback.clear();
         if (e.type === 'wave') banner('VAGUE ' + String(e.wave).padStart(2, '0'), 'TENEZ LE QUARTIER');
         else if (e.type === 'boss') banner(BOSSES[e.boss].name.toUpperCase(), 'MENACE MAJEURE · ÉVITEZ LES MARQUES AU SOL');
         else if (e.type === 'enrage') notify(BOSSES[e.boss].name + ' entre en rage. Des renforts arrivent !');
@@ -403,7 +408,7 @@ $('#share-room').addEventListener('click', async () => {
 });
 
 function screenToWorld(x, y) { return scene.movement(x, y); }
-function blockedByOverlay() { return !$('#help').classList.contains('hidden') || !$('#gameover').classList.contains('hidden') || !$('#connection-error').classList.contains('hidden'); }
+function blockedByOverlay() { return graphics.modal.open || !$('#help').classList.contains('hidden') || !$('#gameover').classList.contains('hidden') || !$('#connection-error').classList.contains('hidden'); }
 function getInput() {
   if (!playerId || blockedByOverlay()) return { x: 0, z: 0, aim, fire: false, interact: false };
   let x = touch.x, y = touch.y;
@@ -421,6 +426,7 @@ function getInput() {
 }
 
 window.addEventListener('keydown', event => {
+  if (graphics.modal.open) return;
   if (!playerId || /INPUT|TEXTAREA/.test(event.target.tagName)) return;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code)) event.preventDefault();
   keys.add(event.code);
@@ -512,7 +518,7 @@ setInterval(() => {
 let previous = performance.now();
 function animate(now) {
   const elapsed = (now - previous) / 1000; previous = now;
-  if (scene) { scene.adaptResolution(elapsed); getInput(); scene.render(Math.min(elapsed, .05), aim); }
+  if (scene) { scene.adaptResolution(elapsed); getInput(); scene.render(Math.min(elapsed, .05), aim); combatFeedback.render(); }
   requestAnimationFrame(animate);
 }
 requestAnimationFrame(animate);

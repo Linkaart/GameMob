@@ -1,0 +1,9 @@
+.combat-feedback{position:fixed;inset:0;pointer-events:none;z-index:4;overflow:hidden}
+.damage-number{position:absolute;left:0;top:0;color:#f4e6b9;font-family:'Barlow Condensed',sans-serif;font-size:23px;font-weight:800;letter-spacing:.6px;text-shadow:0 2px 3px #000,0 0 6px #000;white-space:nowrap;will-change:transform}
+.damage-number[data-fatal=true]{color:#efae7e}.damage-number[data-armored=true]{color:#b7d0d9}
+.enemy-vitals{position:absolute;left:0;top:0;width:66px;text-align:center;filter:drop-shadow(0 2px 2px #0009)}
+.enemy-vitals small{display:block;color:#e5dccc;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+.enemy-vitals>div{height:4px;background:#1d2423;border:1px solid #d8d1ab55}.enemy-vitals i{display:block;height:100%;background:#d9a576;transform-origin:left;transition:transform .12s}
+.hit-confirm{position:absolute;left:50%;top:57%;transform:translateX(-50%);color:#e9dab2;font-size:9px;letter-spacing:2px;font-weight:800;opacity:0;transition:opacity .12s}
+.hit-confirm.active{opacity:1}.hit-confirm.fatal{color:#eda778}
+@media(prefers-reduced-motion:reduce){.enemy-vitals i,.hit-confirm{transition:none}}
